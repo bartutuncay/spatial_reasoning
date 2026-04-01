@@ -1,0 +1,48 @@
+\documentclass{article}
+
+% If the official NeurIPS style file is present, use it.
+% Otherwise fall back to a plain article layout so the project remains editable.
+\IfFileExists{neurips_2026.sty}{
+  \usepackage[preprint]{neurips_2026}
+}{
+  \usepackage[margin=1in]{geometry}
+}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{hyperref}
+\usepackage{url}
+\usepackage{booktabs}
+\usepackage{amsfonts}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{amsthm}
+\usepackage{microtype}
+\usepackage{xcolor}
+\usepackage{graphicx}
+\usepackage{enumitem}
+
+\title{Spatial Reasoning with Graph Neural Networks from Images, Point Clouds, and Visibility Cues}
+
+\author{
+  Anonymous Authors
+}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+\input{sections/abstract}
+\end{abstract}
+
+\input{sections/introduction}
+\input{sections/related_work}
+\input{sections/method}
+\input{sections/experiments}
+\input{sections/conclusion}
+
+\bibliographystyle{plainnat}
+\bibliography{references}
+
+\end{document}
