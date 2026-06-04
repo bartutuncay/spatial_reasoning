@@ -1,9 +1,11 @@
+## Deprecated - Generate a lookup table for neighbouring clusters in global point cloud
+
 import torch
 import glob
 import pandas as pd
 from scipy.spatial import KDTree
 
-subgraphs_dir = '../../../scratch/btuncay/cog/gnn_spatial_reasoning/datasets/processed/anlieferung/scan_pcd_graph/clusters/*.pt'
+subgraphs_dir = 'datasets_processed/anlieferung/scan_pcd_graph/clusters/*.pt'
 subgraphs = sorted(glob.glob(subgraphs_dir))
 
 #print(subgraphs)
@@ -21,5 +23,5 @@ _, neighbors = tree.query(mean_positions,k=len(mean_positions))
 print(neighbors.shape)
 neighbors_df = pd.DataFrame(neighbors[:,1:])
 
-mean_df.to_csv('../../../scratch/btuncay/cog/gnn_spatial_reasoning/datasets/processed/anlieferung/scan_pcd_graph/clusters/lookup.csv')
-neighbors_df.to_csv('../../../scratch/btuncay/cog/gnn_spatial_reasoning/datasets/processed/anlieferung/scan_pcd_graph/clusters/neighbors.csv')
+mean_df.to_csv('datasets_processed/anlieferung/scan_pcd_graph/clusters/lookup.csv')
+neighbors_df.to_csv('datasets_processed/anlieferung/scan_pcd_graph/clusters/neighbors.csv')

@@ -72,6 +72,5 @@ for batch, name in zip(loader,rw_list):
         pred = model(img_in,pcd_in,batch.batch,ei_points,ew_points,ei_camera,ea_camera)
         z_img = {'latent':pred['z_img'],'loc':loc,'viewdir':viewdir}
         z_pcd = {'latent':pred['z_pcd'],'loc':loc,'viewdir':viewdir}
-        #print(f'../../../scratch/btuncay/cog/gnn_spatial_reasoning/datasets/processed/anlieferung/rw_latents/z_img/{name}')
-        torch.save(z_img,f'../../../scratch/btuncay/cog/gnn_spatial_reasoning/datasets/processed/anlieferung/rw_latents/z_img/{name}')
-        torch.save(z_pcd,f'../../../scratch/btuncay/cog/gnn_spatial_reasoning/datasets/processed/anlieferung/rw_latents/z_pcd/{name}')
+        torch.save(z_img,f'datasets_processed/anlieferung/rw_latents/z_img/{name}')
+        torch.save(z_pcd,f'datasets_processed/anlieferung/rw_latents/z_pcd/{name}')
