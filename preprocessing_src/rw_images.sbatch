@@ -2,13 +2,12 @@
 #SBATCH -J rw_latents
 #SBATCH --output=logs/rw_latent.out
 #SBATCH --error=logs/rw_latent.err
-#SBATCH -t 04:00:00
+#SBATCH -t 01:00:00
 #SBATCH -N 4
-#SBATCH -c 32
-#SBATCH --mem-per-cpu=2G
+#SBATCH -c 16
+#SBATCH --mem-per-cpu=1G
 
 module purge
 module load stack/.2024-06-silent gcc/12.2.0 python/3.11.6
-source .venv/bin/activate
 
-python3 -m spatial_reasoning.preprocessing_src.rw_to_vae
+python3 -m spatial_reasoning.preprocessing_src.rw_to_png

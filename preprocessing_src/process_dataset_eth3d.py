@@ -24,7 +24,6 @@ def parse_img_textfile(path:str):
         metadata = lines[i].split()
         pts = lines[i+1].split()
         if len(metadata) < 10:
-            print('Short metadata')
             continue
         image_id = int(metadata[0])
         qw, qx, qy, qz = map(float, metadata[1:5])
@@ -50,7 +49,7 @@ def parse_img_textfile(path:str):
 #   CAMERA_ID, MODEL, WIDTH, HEIGHT, PARAMS[]
 camera_intrinsics = {'W':6208,'H':4135,'fx':3408.59,'fy':3408.87,'cx':3117.24,'cy':2064.07}
 
-images_path = '../../../scratch/btuncay/cog/gnn_spatial_reasoning/datasets/anlieferung/delivery_area/dslr_calibration_undistorted/images.txt'
+images_path = 'datasets_processed/anlieferung/delivery_area/dslr_calibration_undistorted/images.txt'
 
 images_df, _ = parse_img_textfile(images_path)
 images_df.to_csv(images_path.replace('images.txt','images_parsed.csv'),index=False)

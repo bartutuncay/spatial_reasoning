@@ -1,3 +1,7 @@
+## Extract point clouds for the test dataset
+# Note: camera intrinsics are set according to the available ETH3D data,
+# this may require modifications
+
 import numpy as np
 import pandas as pd
 from volume_methods import directional_raycast
@@ -13,9 +17,9 @@ pyg_typing.WITH_INDEX_SORT = False
 
 ## get slices of visible point cloud from each image
 
-pcd_path = '../../../scratch/btuncay/cog/gnn_spatial_reasoning/datasets/anlieferung/delivery_area/scan_raw/combined_aligned.ply'
+pcd_path = 'datasets_processed/anlieferung/delivery_area/scan_raw/combined_aligned.ply'
 #pcd_path = '../../../scratch/btuncay/cog/gnn_spatial_reasoning/datasets/anlieferung/delivery_area/scan_raw/scan2_no_camera.ply'
-images_path = '../../../scratch/btuncay/cog/gnn_spatial_reasoning/datasets/anlieferung/delivery_area/dslr_calibration_undistorted/images_parsed.csv'
+images_path = 'datasets_processed/anlieferung/delivery_area/dslr_calibration_undistorted/images_parsed.csv'
 images_df = pd.read_csv(images_path)
 pcd = o3d.io.read_point_cloud(pcd_path)
 pcd_points = np.asarray(pcd.points)
@@ -54,13 +58,7 @@ def make_graph(pcd_points,pcd_colors,ei,ew):
     data.edge_index = edge_index
     return data
 
-ndirs = 120000
-
-#results_csv = f'../../../scratch/btuncay/cog/gnn_spatial_reasoning/datasets/anlieferung/vis_3d_camera_{process_idx}.csv'
-#res_df = pd.DataFrame(columns=['dirs','max_distance','img','vol_calc','mean_dist','dist_std','min_dist','max_dist',
-#                            'posX','posY'])
-#res_df.to_csv(results_csv,index=False)
-
+ndirs = 120000 #total number of directions for raycasting
 
 for _, point in images_df.iterrows():
     t1 = time.time()
@@ -94,6 +92,5 @@ for _, point in images_df.iterrows():
             'dist_std':stdev_dist,'min_dist':mindist,'max_dist':maxdist,'posX': C[0], 'posY': C[1]}])
     #row.to_csv(results_csv,mode='a',header=False,index=False)
     #torch.save(data,f'../../../scratch/btuncay/cog/gnn_spatial_reasoning/datasets/processed/anlieferung/pcd_graph/{img_name}.pt')
-    break
     #print(data)
     #print(pcd_visible)

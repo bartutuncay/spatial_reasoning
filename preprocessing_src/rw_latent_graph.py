@@ -1,3 +1,6 @@
+## Generate Graph of Encoded Latent Representations from Autoencoder Outputs
+# Note: this has been replaced by a runtime generator and is extraneous
+
 import torch
 from torch_geometric.data import Data
 import torch_geometric.nn.functional as F_geom
@@ -12,7 +15,7 @@ from natsort import natsorted
 import argparse
 import glob
 import torch_geometric.typing as pyg_typing
-from gnn_spatial_reasoning.preprocessing_src.dataloader import MultiModalBatch, make_loader, PtDictFolderDataset
+from spatial_reasoning.preprocessing_src.dataloader import MultiModalBatch, make_loader, PtDictFolderDataset
 pyg_typing.WITH_INDEX_SORT = False
 
 device = torch.device('cpu')

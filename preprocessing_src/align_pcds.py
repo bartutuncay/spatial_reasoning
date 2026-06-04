@@ -60,13 +60,15 @@ def combine_aligned_pointclouds(mlp_path: str | Path, ply_dir: str | Path, out_p
         raise RuntimeError(f"Failed to write: {out_path}")
     print(f"Wrote combined point cloud: {out_path} (N={np.asarray(combined.points).shape[0]})")
 
+location = 'relief/relief' # 'test_playground/playground', 'test_meadow', 'test_terrace/terrace', 'relief_2/relief_2', 'relief/relief', 'office/office', 'break_room/kicker', 'anlieferung/delivery_area', 'terrains/terrains'
+
 
 if __name__ == "__main__":
     # Example usage:
     # - mlp contains filename="scan1.ply" etc.
     # - ply_dir is the folder where scan1.ply and scan2.ply live
     combine_aligned_pointclouds(
-        mlp_path="../../../scratch/btuncay/cog/gnn_spatial_reasoning/datasets/anlieferung/delivery_area/scan_raw/scan_alignment.mlp",
-        ply_dir="../../../scratch/btuncay/cog/gnn_spatial_reasoning/datasets/anlieferung/delivery_area/scan_raw/",
-        out_path="../../../scratch/btuncay/cog/gnn_spatial_reasoning/datasets/anlieferung/delivery_area/scan_raw/combined_aligned.ply",
+        mlp_path=f"datasets_processed/{location}/scan_raw/scan_alignment.mlp",
+        ply_dir=f"datasets_processed/{location}/scan_raw/",
+        out_path=f"datasets_processed/{location}/scan_raw/combined_aligned.ply",
     )
