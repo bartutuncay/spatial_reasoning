@@ -12,4 +12,4 @@
 module purge
 module load stack/.2024-06-silent gcc/12.2.0 python/3.11.6
 
-python3 gnn_spatial_reasoning/agent_src/random_walk_test.py --task-index ${SLURM_ARRAY_TASK_ID}
+python3 gnn_spatial_reasoning/agent_src/random_walk_json.py --scene anlieferung --task-index ${SLURM_ARRAY_TASK_ID}

@@ -1,3 +1,7 @@
+## Helper functions for random walk data processing
+# kNN graph generator
+# Rotation matrix solver
+
 import numpy as np
 import pandas as pd
 from volume_methods import directional_raycast
@@ -39,7 +43,6 @@ def make_graph(pcd_points,pcd_colors,ei,ew):
     ew = torch.from_numpy(ew)
 
     edge_index,ew = to_undirected(ei,edge_attr=ew)
-    #print('Undirected?' if is_undirected(edge_index) else 'Directed!')
     data.edge_attr = ew
     data.edge_index = edge_index
     return data

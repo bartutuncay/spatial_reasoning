@@ -1,3 +1,10 @@
+## Generate random walk sequences using the Habitat simulator by Meta
+# Requires installation of habitat-sim with CUDA
+## Parameters:
+# number of walks
+# steps per walk
+# step size
+
 import numpy as np
 import torch
 import habitat_sim
@@ -116,7 +123,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--task-index',type=int)
 args = parser.parse_args()
 
-scenes_list = sorted(glob.glob('../../../scratch/btuncay/cog/baselines/datasets/habitat/train/*'))
+scenes_list = sorted(glob.glob('datasets_processed/habitat/train/*'))
 print(scenes_list)
 seed = args.task_index
 

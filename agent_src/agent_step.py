@@ -1,3 +1,11 @@
+## Script to generate random walks within a point cloud
+# Logs position & view direction, visible point cloud as a 3D graph and view as 2D array
+## Pipeline:
+# Define input point cloud + intrinsics
+# Define navigable area as rectangles
+# Set save directory
+# Run batch operation with SLURM script
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -8,27 +16,18 @@ import numpy as np
 import torch
 from torch_geometric.data import Data
 
-try:
-    import open3d as o3d
-except ImportError:  # pragma: no cover - optional at import time
-    o3d = None
+import open3d as o3d
 
-try:
-    from .pcd_slice_methods import knn_connectivity, rotation_a_to_b
-except ImportError:
-    from pcd_slice_methods import knn_connectivity, rotation_a_to_b
-
+from pcd_slice_methods import knn_connectivity, rotation_a_to_b
 import torch_geometric.typing as pyg_typing
 
 pyg_typing.WITH_INDEX_SORT = False
-
 
 DEFAULT_CAMERA_INTRINSICS = {"W": 6208, "H": 4135, "fx": 3408.59, "fy": 3408.87}
 
 
 def wrap_angle(theta: float) -> float:
     return float((theta + np.pi) % (2.0 * np.pi) - np.pi)
-
 
 def cartesian_to_spherical(vectors: np.ndarray) -> np.ndarray:
     if vectors.shape[0] == 0:
@@ -40,15 +39,6 @@ def cartesian_to_spherical(vectors: np.ndarray) -> np.ndarray:
     elevation = np.arctan2(vectors[:, 2], xy_norm)
     return np.stack([radii, azimuth, elevation], axis=1).astype(np.float32)
 
-
-def spherical_edge_attr(points: np.ndarray, edge_index: np.ndarray) -> np.ndarray:
-    if edge_index.shape[1] == 0:
-        return np.empty((0, 3), dtype=np.float32)
-
-    rel_vecs = points[edge_index[1]] - points[edge_index[0]]
-    return cartesian_to_spherical(rel_vecs)
-
-
 def cartesian_to_norm(points: np.ndarray, edge_index: np.ndarray) -> np.ndarray:
     if edge_index.shape[1] == 0:
         return np.empty((0, 4), dtype=np.float32)
@@ -58,7 +48,6 @@ def cartesian_to_norm(points: np.ndarray, edge_index: np.ndarray) -> np.ndarray:
     safe_dist = np.maximum(dist, 1e-12)
     dir_vec = vectors / safe_dist[:, None]
     return np.concatenate([dist[:, None], dir_vec], axis=1).astype(np.float32)
-
 
 def safe_knn_connectivity(points: np.ndarray, k: int) -> tuple[np.ndarray, np.ndarray]:
     num_nodes = points.shape[0]
@@ -234,7 +223,7 @@ class Rect:
     def area(self) -> float:
         return max(0.0, self.xmax - self.xmin) * max(0.0, self.ymax - self.ymin)
 
-
+# define navigable area with rectangles
 DEFAULT_AGENT_RECTS = [
     Rect(xmin=-47, xmax=5, ymin=-4, ymax=0),
     Rect(xmin=-12, xmax=5, ymin=0, ymax=9),
@@ -304,15 +293,11 @@ class RenderConfig:
 
     @property
     def fov_x(self) -> float:
-        return float(
-            2.0 * np.arctan(self.camera_intrinsics["W"] / (2.0 * self.camera_intrinsics["fx"]))
-        )
+        return float(2.0 * np.arctan(self.camera_intrinsics["W"] / (2.0 * self.camera_intrinsics["fx"])))
 
     @property
     def fov_y(self) -> float:
-        return float(
-            2.0 * np.arctan(self.camera_intrinsics["H"] / (2.0 * self.camera_intrinsics["fy"]))
-        )
+        return float(2.0 * np.arctan(self.camera_intrinsics["H"] / (2.0 * self.camera_intrinsics["fy"])))
 
 
 @dataclass

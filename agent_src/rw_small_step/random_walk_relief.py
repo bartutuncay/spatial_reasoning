@@ -228,10 +228,6 @@ def in_union_rects(xy: np.ndarray, rects: list[Rect]) -> np.ndarray:
     return mask
 
 def sample_xy_in_union(rects: list[Rect], n: int, rng: np.random.Generator) -> np.ndarray:
-    """
-    Returns (n,2) points uniformly over the *mixture* of rectangles by area.
-    NOTE: If rectangles overlap, the overlapping area will be oversampled.
-    """
     areas = np.array([r.area for r in rects], dtype=float)
     if areas.sum() <= 0:
         raise ValueError("Total area is zero; check rectangle bounds.")
@@ -329,7 +325,7 @@ path,dirs,_ = smooth_heading_walk(rng.choice(sampled_pts),rects,40,0.02,0.01,0.0
 #path = lazy_walk(rng.choice(sampled_pts),rects,100,0.1,0.9,0.05,rng=rng)
 print(path,dirs)
 
-pcd_path = '../../../scratch/btuncay/cog/gnn_spatial_reasoning/datasets/relief/relief/scan_raw/combined_aligned.ply'
+pcd_path = 'dataset_processed/relief/relief/scan_raw/combined_aligned.ply'
 pcd = o3d.io.read_point_cloud(pcd_path)
 pcd_points = np.asarray(pcd.points)
 pcd_colors = np.asarray(pcd.colors)
@@ -342,7 +338,7 @@ fov_y = 2*np.arctan(camera_intrinsics['H']/(2*camera_intrinsics['fy']))
 
 for vantage_idx, point in enumerate(zip(path,dirs)):
     view_idx = f'{process_idx}_{vantage_idx}'
-    out_path = f'../../../scratch/btuncay/cog/gnn_spatial_reasoning/datasets/processed/relief/rw_translation/rw_{process_idx}_{vantage_idx}.pt'
+    out_path = f'dataset_processed/relief/rw_translation/rw_{process_idx}_{vantage_idx}.pt'
     point, viewdir = point
     vantage = np.array([point[0], point[1], -0.2], dtype=np.float32)
     view_rgb, view_depth, visible_idx, pcd_visible_world, pcd_rgb = raycast_img_with_points(
@@ -368,12 +364,4 @@ for vantage_idx, point in enumerate(zip(path,dirs)):
               'loc': torch.from_numpy(vantage), 'view_dir': torch.from_numpy(viewdir).to(torch.float32),
               'ei_points':ei,'ew_points':ew,'ei_camera':data_graph.ei_camera,'ea_camera':data_graph.ea_camera}
     torch.save(packed,out_path)
-    #break
-if False:
-    import matplotlib.pyplot as plt
-    plt.figure(figsize=(10,6))
-    #plt.plot(path[:,0],path[:,1])
-    plt.imshow(view_rgb)
-    #plt.axis('equal')
-    plt.savefig(f'../../../scratch/btuncay/cog/gnn_spatial_reasoning/logs/random_walk/test_{process_idx}_{vantage_idx}.png')
  
