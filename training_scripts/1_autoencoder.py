@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.append(str(ROOT))
 
-from gnn_spatial_reasoning.preprocessing_src.dataloader_autoencoder import (
+from preprocessing_src.dataloader_autoencoder import (
     RandomWalkAutoencoderDataset,
     collate_random_walk_autoencoder,
 )
@@ -26,10 +26,10 @@ def load_module(name: str, path: Path):
     return module
 
 
-img_enc_mod = load_module("nips_img_enc", ROOT / "gnn_spatial_reasoning_nips/models/1_img_enc.py")
-img_dec_mod = load_module("nips_img_dec", ROOT / "gnn_spatial_reasoning_nips/models/1_img_dec.py")
-pcd_enc_mod = load_module("nips_pcd_enc", ROOT / "gnn_spatial_reasoning_nips/models/1_pcd_enc.py")
-pcd_dec_mod = load_module("nips_pcd_dec", ROOT / "gnn_spatial_reasoning_nips/models/1_pcd_dec.py")
+img_enc_mod = load_module("img_enc", ROOT / "models/1_img_enc.py")
+img_dec_mod = load_module("img_dec", ROOT / "models/1_img_dec.py")
+pcd_enc_mod = load_module("pcd_enc", ROOT / "models/1_pcd_enc.py")
+pcd_dec_mod = load_module("pcd_dec", ROOT / "models/1_pcd_dec.py")
 
 Bottleneck = img_enc_mod.Bottleneck
 ImgEnc = img_enc_mod.ImgEnc
@@ -42,18 +42,27 @@ EPOCHS = 20000
 MAX_STEPS_PER_EPOCH = 200
 CLIP_GRAD_NORM = 1.0
 LATENT_DIM = 128
-ALIAS = "0420_nips"
-SAVE_DIR = ROOT/"../../../scratch/btuncay/cog/gnn_spatial_reasoning/1_model" /ALIAS
+ALIAS = "0522"
+SAVE_DIR = ROOT/"1_model" /ALIAS
 TAN_FOV_X = torch.tan(torch.tensor(0.5 * 1.4773256165109574)).item()
 TAN_FOV_Y = torch.tan(torch.tensor(0.5 * 1.0903791454597398)).item()
 
 RW_LIST = [
-    "../../../scratch/btuncay/cog/gnn_spatial_reasoning/datasets/processed/anlieferung/random_walks",
-    "../../../scratch/btuncay/cog/gnn_spatial_reasoning/datasets/processed/break_room/random_walks",
-    "../../../scratch/btuncay/cog/gnn_spatial_reasoning/datasets/processed/hospital/random_walks",
-    "../../../scratch/btuncay/cog/gnn_spatial_reasoning/datasets/processed/relief/random_walks",
-    "../../../scratch/btuncay/cog/gnn_spatial_reasoning/datasets/processed/terrains/random_walks",
-    "../../../scratch/btuncay/cog/gnn_spatial_reasoning/datasets/processed/office/random_walks",
+    "datasets_processed/anlieferung/rw_translation_anlieferung",
+    "datasets_processed/break_room/rw_translation_breakroom",
+    "datasets_processed/relief/rw_translation_relief",
+    "datasets_processed/terrains/rw_translation_terrains",
+    "datasets_processed/office/rw_translation_office",
+    "datasets_processed/habitat/train/00000-kfPV7w3FaU5/random_walks",
+    "datasets_processed/habitat/train/00001-UVdNNRcVyV1/random_walks",
+    "datasets_processed/habitat/train/00002-FxCkHAfgh7A/random_walks",
+    "datasets_processed/habitat/train/00003-NtVbfPCkBFy/random_walks",
+    "datasets_processed/habitat/train/00004-VqCaAuuoeWk/random_walks",
+    "datasets_processed/habitat/train/00005-yPKGKBCyYx8/random_walks",
+    "datasets_processed/habitat/train/00006-HkseAnWCgqk/random_walks",
+    "datasets_processed/habitat/train/00007-UQuchpekHRJ/random_walks",
+    "datasets_processed/habitat/train/00008-VYnUX657cVo/random_walks",
+    "datasets_processed/habitat/train/00009-vLpv2VX547B/random_walks",
 ]
 
 

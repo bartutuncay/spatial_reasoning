@@ -1,0 +1,13 @@
+https://www.eth3d.net/data/courtyard_scan_raw.7z
+https://www.eth3d.net/data/delivery_area_scan_raw.7z
+https://www.eth3d.net/data/electro_scan_raw.7z
+https://www.eth3d.net/data/facade_scan_raw.7z
+https://www.eth3d.net/data/kicker_scan_raw.7z
+https://www.eth3d.net/data/meadow_scan_raw.7z
+https://www.eth3d.net/data/office_scan_raw.7z
+https://www.eth3d.net/data/pipes_scan_raw.7z
+https://www.eth3d.net/data/playground_scan_raw.7z
+https://www.eth3d.net/data/relief_scan_raw.7z
+https://www.eth3d.net/data/relief_2_scan_raw.7z
+https://www.eth3d.net/data/terrace_scan_raw.7z
+https://www.eth3d.net/data/terrains_scan_raw.7z

@@ -16,8 +16,8 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.append(str(ROOT))
 
-from gnn_spatial_reasoning.models.locator_vae_2 import Locator
-from gnn_spatial_reasoning.preprocessing_src.dataloader_autoencoder import make_loader
+from models.locator_vae import Locator
+from preprocessing_src.dataloader_autoencoder import make_loader
 
 
 def load_module(name: str, path: Path):
@@ -38,6 +38,7 @@ PCDEnc = pcd_enc_mod.PCDEnc
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 torch.set_default_dtype(torch.float32)
 
+ALIAS_VAE = '1_weights'
 EPOCHS = int(os.environ.get("LOCATOR_EPOCHS", "20000"))
 WALK_BATCH_SIZE = int(os.environ.get("LOCATOR_WALK_BATCH_SIZE", "2"))
 WALK_LOADER_WORKERS = int(os.environ.get("LOCATOR_WALK_WORKERS", "4"))
@@ -60,23 +61,23 @@ VAE_BRANCH = os.environ.get("LOCATOR_VAE_BRANCH", "pcd").strip().lower()
 PROCESSED_DATA_ROOT = Path(
     os.environ.get(
         "LOCATOR_PROCESSED_ROOT",
-        "../../../scratch/btuncay/cog/gnn_spatial_reasoning/datasets/processed",
+        "datasets_processed",
     )
 )
 MODEL_ROOT = Path(
     os.environ.get(
         "LOCATOR_MODEL_ROOT",
-        "../../../scratch/btuncay/cog/gnn_spatial_reasoning/4_model_locator",
+        "4_model_locator",
     )
 )
 VAE_WEIGHTS = Path(
     os.environ.get(
         "LOCATOR_VAE_WEIGHTS",
-        "../../../scratch/btuncay/cog/gnn_spatial_reasoning/1_model/0420_nips/model_weights_7800.pt",
+        f"1_model/{ALIAS_VAE}/model_weights_best.pt",
     )
 )
 DATASET_ENV_VAR = "LOCATOR_DATASETS"
-ALIAS = os.environ.get("LOCATOR_ALIAS", "0505")
+ALIAS = "2_weights"
 WORLD_UP = torch.tensor([0.0, 0.0, 1.0], dtype=torch.float32)
 SCENE_CACHE_KEYS = (
     "node_mu",
