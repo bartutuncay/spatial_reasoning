@@ -1,0 +1,7 @@
+# Generated / run-time artifacts (regenerated from make_specs.py / on-cluster)
+exp_*/specs/
+exp_*/slurm/generated/
+**/results/
+**/logs/
+**/__pycache__/
+*.pyc
