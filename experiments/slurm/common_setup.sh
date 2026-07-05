@@ -9,20 +9,23 @@
 
 set +u
 
-: "${ENV_KIND:=venv}"
+: "${ENV_KIND:=conda}"
+: "${ENV_PREFIX:=/cluster/scratch/aleonel/spatial_jepa/env}"
 : "${ENV_PATH:=/cluster/scratch/aleonel/spatial_jepa/.venv}"
 : "${ENV_NAME:=spatial_jepa}"
 : "${SJEPA_MODULES:=stack/.2024-06-silent gcc/12.2.0 python_cuda/3.11.6 eth_proxy}"
 
-module purge 2>/dev/null || true
-# shellcheck disable=SC2086
-module load ${SJEPA_MODULES}
-
 if [[ "${ENV_KIND}" == "conda" ]]; then
+    # Self-contained conda env: CUDA runtime is bundled in the torch wheels, so
+    # we do NOT load python_cuda (it would shadow the conda python on PATH).
     source "$(conda info --base)/etc/profile.d/conda.sh"
-    conda activate "${ENV_NAME}"
+    conda activate "${ENV_PREFIX}"
 else
-    # venvs are not relocatable: activate at its original absolute path.
+    # venv mode: load Bartu's module stack the venv was built against, then
+    # activate it in place (venvs are not relocatable).
+    module purge 2>/dev/null || true
+    # shellcheck disable=SC2086
+    module load ${SJEPA_MODULES}
     source "${ENV_PATH}/bin/activate"
 fi
 

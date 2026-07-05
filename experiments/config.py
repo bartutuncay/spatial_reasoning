@@ -9,11 +9,14 @@ from __future__ import annotations
 # On-cluster project root: code is rsynced here, results/ live beneath it.
 ROOT = "/cluster/scratch/aleonel/spatial_jepa"
 
-# Environment to run workers in. Reusing Bartu's shared venv is preferred; if
-# ENV_KIND == "venv" the sbatch sources ENV_PATH/bin/activate, else conda.
-ENV_KIND = "venv"                    # "venv" | "conda"
-ENV_PATH = "/cluster/scratch/aleonel/spatial_jepa/.venv"  # updated once Bartu shares his
-ENV_NAME = "spatial_jepa"            # used when ENV_KIND == "conda"
+# Environment to run workers in. We build our own conda env on scratch
+# (see experiments/env/setup_env.sh); CUDA is bundled in the torch wheels.
+#   ENV_KIND == "conda" -> conda activate ENV_PREFIX
+#   ENV_KIND == "venv"  -> source ENV_PATH/bin/activate (fallback / Bartu's venv)
+ENV_KIND = "conda"
+ENV_PREFIX = "/cluster/scratch/aleonel/spatial_jepa/env"   # conda env on scratch
+ENV_PATH = "/cluster/scratch/aleonel/spatial_jepa/.venv"   # venv fallback
+ENV_NAME = "spatial_jepa"
 
 # (partition, gres-string) by GPU key. Mirrors the sibling table, which is
 # proven to schedule under the aleonel account.

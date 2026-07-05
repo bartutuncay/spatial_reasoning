@@ -7,10 +7,16 @@ LOCAL="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"   # = src/
 REMOTE_HOST="euler"
 REMOTE_PATH="/cluster/scratch/aleonel/spatial_jepa"
 
+# NB: --delete must never touch scratch-generated trees: the conda env, the
+# downloaded/processed data, results and logs all live under excluded dirs.
+# Leading '/' anchors an exclude to the transfer ROOT only, so scratch-generated
+# top-level dirs (conda env, data, results, logs) are protected from --delete
+# WITHOUT also excluding nested code dirs like experiments/env/.
 rsync -av --checksum --delete \
-  --exclude='results/' --exclude='logs/' \
-  --exclude='datasets_processed/' --exclude='datasets/*.7z' \
-  --exclude='1_model/' --exclude='4_model_locator/' \
+  --exclude='/env/' --exclude='/data/' \
+  --exclude='/results/' --exclude='/logs/' \
+  --exclude='/datasets/' --exclude='/datasets_processed/' \
+  --exclude='/1_model/' --exclude='/4_model_locator/' \
   --exclude='.venv/' \
   --exclude='.git/' --exclude='__pycache__/' --exclude='*.pyc' \
   --exclude='.pytest_cache/' --exclude='*.ipynb' --exclude='.ipynb_checkpoints/' \

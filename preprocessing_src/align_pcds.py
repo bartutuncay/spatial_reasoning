@@ -1,3 +1,4 @@
+import os
 import xml.etree.ElementTree as ET
 from pathlib import Path
 import numpy as np
@@ -60,7 +61,7 @@ def combine_aligned_pointclouds(mlp_path: str | Path, ply_dir: str | Path, out_p
         raise RuntimeError(f"Failed to write: {out_path}")
     print(f"Wrote combined point cloud: {out_path} (N={np.asarray(combined.points).shape[0]})")
 
-location = 'relief/relief' # 'test_playground/playground', 'test_meadow', 'test_terrace/terrace', 'relief_2/relief_2', 'relief/relief', 'office/office', 'break_room/kicker', 'anlieferung/delivery_area', 'terrains/terrains'
+location = os.environ.get('SJEPA_SCENE', 'relief/relief')  # '<projectfolder>/<eth3dscene>'
 
 
 if __name__ == "__main__":

@@ -13,6 +13,7 @@ from experiments.config import (
     ENV_KIND,
     ENV_NAME,
     ENV_PATH,
+    ENV_PREFIX,
     GPU_TABLE,
     ROOT,
 )
@@ -30,7 +31,7 @@ TEMPLATE = """#!/usr/bin/env bash
 #SBATCH --signal=B:USR1@120
 set -eo pipefail; set +u
 cd {root}
-export ENV_KIND={env_kind} ENV_PATH={env_path} ENV_NAME={env_name}
+export ENV_KIND={env_kind} ENV_PREFIX={env_prefix} ENV_PATH={env_path} ENV_NAME={env_name}
 source experiments/slurm/common_setup.sh
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 export PYTHONHASHSEED=0
@@ -63,6 +64,7 @@ def render(spec: dict, root: str = ROOT) -> str:
         cpus=slurm["cpus"],
         root=root,
         env_kind=ENV_KIND,
+        env_prefix=ENV_PREFIX,
         env_path=ENV_PATH,
         env_name=ENV_NAME,
         module=spec["module"],

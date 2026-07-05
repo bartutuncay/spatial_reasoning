@@ -5,7 +5,7 @@ import os
 import py7zr
 import glob
 
-location = 'relief' # 'test_meadow', 'relief_2', 'relief', 'pipes', 'office', 'anlieferung', 'break_room', 'terrains', 'test_terrace', 'test_playground'
+location = os.environ.get('SJEPA_LOCATION', 'relief')  # project folder name, e.g. 'office'
 
 out_dir = f'datasets_processed/{location}'
 os.makedirs(out_dir,exist_ok=True)

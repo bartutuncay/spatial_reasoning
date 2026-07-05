@@ -3,6 +3,7 @@
 # Required for training and inference tasks of locator model
 
 import math
+import os
 import torch
 import numpy as np
 from scipy.spatial import KDTree, Delaunay
@@ -26,7 +27,8 @@ def make_graph(pcd_points,pcd_colors,ei,ew):
     data.edge_index = edge_index
     return data
 
-scene =  'test_terrace/terrace'# 'pipes/pipes', 'relief/relief', 'hospital/.', 'break_room/kicker', 'anlieferung/delivery_area'
+scene = os.environ.get('SJEPA_SCENE', 'test_terrace/terrace')  # '<projectfolder>/<eth3dscene>'
+folder = scene.split('/')[0]
 
 device = torch.device('cpu')
 pcd = o3d.io.read_point_cloud(f'datasets_processed/{scene}/scan_raw/combined_aligned.ply')
@@ -43,7 +45,8 @@ row, col = ei
 ew = torch.norm(pcd_coords[row] - pcd_coords[col], dim=1)
 data = make_graph(pcd_coords,pcd_rgb,ei,ew)
 
-torch.save(data,f'datasets_processed/{scene.split('/')[0]}/scan_pcd_graph/combined_aligned.pt')
+os.makedirs(f'datasets_processed/{folder}/scan_pcd_graph/clusters', exist_ok=True)
+torch.save(data, f'datasets_processed/{folder}/scan_pcd_graph/combined_aligned.pt')
 
 ## Cluster the graph
 N = data.num_nodes
@@ -53,4 +56,4 @@ cluster_data = ClusterData(data, num_parts=num_parts, recursive=False)
 cluster_loader = ClusterLoader(cluster_data, batch_size=1, shuffle=True)
 
 for i, part in enumerate(cluster_loader):
-    torch.save(part,f'datasets_processed/{scene.split('/')[0]}/scan_pcd_graph/clusters/{i}.pt')
+    torch.save(part, f'datasets_processed/{folder}/scan_pcd_graph/clusters/{i}.pt')
