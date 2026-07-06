@@ -47,28 +47,52 @@ def _walk_gt_positions(processed_root: str, scene_folder: str) -> np.ndarray:
     return np.stack(locs)
 
 
+def _robust_bounds(node_pos, lo=1.0, hi=99.0):
+    """Percentile bounds per axis to reject far-flung ETH3D scan outliers."""
+    p_lo = np.percentile(node_pos, lo, axis=0)
+    p_hi = np.percentile(node_pos, hi, axis=0)
+    keep = np.all((node_pos >= p_lo) & (node_pos <= p_hi), axis=1)
+    return node_pos[keep], keep.mean()
+
+
 def probe_p3(args) -> dict:
-    """Predict-scene-centroid baseline: the floor the locator must beat."""
+    """Predict-scene-centroid baseline: the floor the locator must beat.
+
+    Raw ETH3D combined_aligned.ply carries far-away outlier points, so we report
+    BOTH the naive centroid and an outlier-robust (1-99 percentile trimmed)
+    centroid; the trimmed one is the meaningful floor.
+    """
     node_pos = _scene_node_positions(args.processed_root, args.scene_folder)
     gt = _walk_gt_positions(args.processed_root, args.scene_folder)
-    centroid = node_pos.mean(axis=0)
-    pred = np.tile(centroid, (gt.shape[0], 1))
-    errs = translation_errors(pred, gt)
-    scene_extent = float(np.linalg.norm(node_pos.max(0) - node_pos.min(0)))
+
+    naive_c = node_pos.mean(axis=0)
+    inl_pos, inl_frac = _robust_bounds(node_pos)
+    robust_c = inl_pos.mean(axis=0)
+
+    naive_pred = np.tile(naive_c, (gt.shape[0], 1))
+    robust_pred = np.tile(robust_c, (gt.shape[0], 1))
+    r_errs = translation_errors(robust_pred, gt)
+
+    full_extent = float(np.linalg.norm(node_pos.max(0) - node_pos.min(0)))
+    inl_extent = float(np.linalg.norm(inl_pos.max(0) - inl_pos.min(0)))
     return {
         "status": "ok",
         "verdict": "EXISTS",
         "channel": "probe",
-        "primary": round(float(ate_rmse(pred, gt)), 4),
+        "primary": round(float(ate_rmse(robust_pred, gt)), 4),
         "metrics": {
-            "centroid_ate_rmse_m": float(ate_rmse(pred, gt)),
-            "centroid_err_median_m": float(np.median(errs)),
-            "centroid_err_p90_m": float(np.percentile(errs, 90)),
+            "centroid_ate_rmse_robust_m": float(ate_rmse(robust_pred, gt)),
+            "centroid_ate_rmse_naive_m": float(ate_rmse(naive_pred, gt)),
+            "robust_err_median_m": float(np.median(r_errs)),
+            "robust_err_p90_m": float(np.percentile(r_errs, 90)),
             "n_queries": int(gt.shape[0]),
             "n_scene_nodes": int(node_pos.shape[0]),
-            "scene_diag_extent_m": scene_extent,
+            "inlier_frac": float(inl_frac),
+            "scene_extent_full_m": full_extent,
+            "scene_extent_inlier_m": inl_extent,
         },
-        "notes": "predict-scene-centroid floor; learned locator must beat this per-sample",
+        "notes": ("predict-scene-centroid floor (outlier-trimmed); learned locator "
+                  "must beat this per-sample. Large full extent => raw .ply has outliers."),
     }
 
 
