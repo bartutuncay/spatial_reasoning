@@ -13,7 +13,7 @@ REMOTE_PATH="/cluster/scratch/aleonel/spatial_jepa"
 # top-level dirs (conda env, data, results, logs) are protected from --delete
 # WITHOUT also excluding nested code dirs like experiments/env/.
 rsync -av --checksum --delete \
-  --exclude='/env/' --exclude='/data/' \
+  --exclude='/env/' --exclude='/data/' --exclude='/data_bartu/' \
   --exclude='/results/' --exclude='/logs/' \
   --exclude='/datasets/' --exclude='/datasets_processed/' \
   --exclude='/1_model/' --exclude='/4_model_locator/' \
