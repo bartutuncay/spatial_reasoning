@@ -1,0 +1,17 @@
+# Non-torch deps for Spatial-JEPA. The torch + PyG-extension stack is installed
+# separately in setup_env.sh from the CUDA-matched wheel indexes.
+# Pinned to a combination known to co-install with torch 2.4.1 + cu121 on py3.11.
+numpy==1.26.4
+torch_geometric==2.6.1
+open3d==0.18.0
+opencv-python-headless==4.10.0.84
+pandas==2.2.2
+scipy==1.13.1
+scikit-learn==1.5.1
+shapely==2.0.5
+networkx==3.3
+natsort==8.4.0
+py7zr==0.22.0
+matplotlib==3.9.2
+pyarrow==17.0.0
+tqdm==4.66.5

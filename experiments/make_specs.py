@@ -11,11 +11,17 @@ A spec is a plain dict:
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 from experiments.config import ACCOUNT_SHORT, DEFAULT_SLURM
 
 SPECS_DIRNAME = "specs"
+
+# The scene the campaign runs on (must match a provisioned scene). Every worker
+# spec carries an explicit --scene so it never silently falls back to a default
+# for a scene that was never provisioned.
+SCENE = os.environ.get("SJEPA_SCENE_KEY", "office")
 
 # --------------------------------------------------------------------------- #
 # Stage-A axes. The default point (one value per axis) is the anchor; each axis
@@ -92,7 +98,7 @@ def _probe_specs():
     for pid, channel, hypo in probes:
         out.append(_spec(
             sid=f"W0_{pid}", wave=0, channel=channel, module=mod,
-            args={"--probe": pid}, hypothesis=hypo, est_gpu_h=0.3,
+            args={"--probe": pid, "--scene": SCENE}, hypothesis=hypo, est_gpu_h=0.3,
         ))
     return out
 
@@ -103,7 +109,7 @@ def _stage_a_specs():
     out = []
 
     def _args(cfg):
-        a = {"--tier": "shakedown"}
+        a = {"--tier": "shakedown", "--scene": SCENE}
         for k, v in cfg.items():
             a[f"--{k.replace('_', '-')}"] = v
         return a

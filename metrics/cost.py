@@ -51,11 +51,14 @@ def peak_gpu_mem_mb() -> Optional[float]:
 
 
 def flops(model, example_inputs) -> Optional[float]:
-    """Best-effort forward FLOPs. Tries fvcore then ptflops; None if neither."""
+    """Best-effort forward FLOPs (= 2 x MACs). Both backends return the SAME
+    convention so the value is comparable across heterogeneous nodes.
+    """
     try:
         from fvcore.nn import FlopCountAnalysis
 
-        return float(FlopCountAnalysis(model, example_inputs).total())
+        # fvcore's .total() counts MACs (despite the name); double for FLOPs.
+        return float(FlopCountAnalysis(model, example_inputs).total()) * 2.0
     except Exception:
         pass
     try:

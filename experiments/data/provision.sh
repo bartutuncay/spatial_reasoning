@@ -33,7 +33,10 @@ ARCHIVE="datasets/${LOC}/${DL}_scan_raw.7z"
 mkdir -p "datasets/${LOC}"
 if [ ! -f "$ARCHIVE" ]; then
   echo "== download ${DL}_scan_raw.7z =="
-  wget -q -O "$ARCHIVE" "https://www.eth3d.net/data/${DL}_scan_raw.7z"
+  # download to a temp file and rename on success, so an interrupted download
+  # never leaves a truncated archive that the [ -f ] guard would skip re-fetching
+  wget -q -O "${ARCHIVE}.part" "https://www.eth3d.net/data/${DL}_scan_raw.7z"
+  mv "${ARCHIVE}.part" "$ARCHIVE"
 fi
 
 # 2. extract

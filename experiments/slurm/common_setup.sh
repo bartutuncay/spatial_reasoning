@@ -42,7 +42,9 @@ mkdir -p logs results
 run_with_usr1_forwarding() {
     "$@" &
     local pid=$!
+    local _usr1=0
     trap "
+        _usr1=1
         echo \"[\$(date -Is)] forwarding SIGUSR1 to pid=${pid}\"
         kill -USR1 ${pid} 2>/dev/null || true
         for c in \$(pgrep -P ${pid} 2>/dev/null); do
@@ -54,7 +56,10 @@ run_with_usr1_forwarding() {
         wait_rc=0
         wait "${pid}" || wait_rc=$?
         if (( wait_rc == 0 )); then rc=0; break; fi
-        if (( wait_rc > 128 )); then continue; fi
+        # Only re-wait when OUR USR1 trap actually fired; a real signal-kill of
+        # the child (SIGTERM=143 / SIGKILL=137 / OOM) must return its true code
+        # so the checkpoint-then-requeue workflow sees the correct failure.
+        if (( wait_rc > 128 )) && (( _usr1 == 1 )); then _usr1=0; continue; fi
         rc=${wait_rc}; break
     done
     trap - USR1

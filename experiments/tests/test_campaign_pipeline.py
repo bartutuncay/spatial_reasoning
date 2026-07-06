@@ -32,7 +32,8 @@ def test_sbatch_renders_expected_header_and_command():
     assert "#SBATCH --gpus=nvidia_geforce_rtx_4090:1" in txt
     assert "#SBATCH --chdir=/cluster/scratch/aleonel/spatial_jepa" in txt
     assert "python -m experiments.exp_jepa.train" in txt
-    assert "--out results/W1_anchor" in txt
+    assert "--out results/jepa_campaign/W1_anchor" in txt   # write path == collector read path
+    assert "--scene office" in txt                          # explicit scene, no silent default
     assert "--seed 0" in txt
     assert "source experiments/slurm/common_setup.sh" in txt
 
@@ -43,12 +44,17 @@ def test_collect_builds_ledger_with_verdicts(tmp_path):
     make_specs.write_specs(specs, specs_dir)
     results_dir = tmp_path / "results"
 
-    # simulate two finished workers: one EXISTS, one failed -> DEAD
-    ok_id, fail_id = "W0_P3", "W1_anchor"
-    (results_dir / ok_id).mkdir(parents=True)
-    (results_dir / ok_id / "result.json").write_text(json.dumps(
-        {"id": ok_id, "status": "ok", "primary": 0.12, "gpu_h": 0.2,
-         "metrics": {"centroid_ate": 0.9}}
+    # simulate three finished workers: ok-without-verdict -> UNSCORED (never
+    # auto-EXISTS); explicit EXISTS honored; failed -> DEAD.
+    unscored_id, exists_id, fail_id = "W0_P3", "W0_P1", "W1_anchor"
+    (results_dir / unscored_id).mkdir(parents=True)
+    (results_dir / unscored_id / "result.json").write_text(json.dumps(
+        {"id": unscored_id, "status": "ok", "primary": 0.0, "gpu_h": 0.0,
+         "date": "2026-07-06", "metrics": {"centroid_ate": 0.9}}
+    ))
+    (results_dir / exists_id).mkdir(parents=True)
+    (results_dir / exists_id / "result.json").write_text(json.dumps(
+        {"id": exists_id, "status": "ok", "verdict": "EXISTS", "primary": 0.05}
     ))
     (results_dir / fail_id).mkdir(parents=True)
     (results_dir / fail_id / "result.json").write_text(json.dumps(
@@ -59,15 +65,17 @@ def test_collect_builds_ledger_with_verdicts(tmp_path):
 
     assert len(rows) == len(specs)
     by_id = {r["id"]: r for r in rows}
-    assert by_id[ok_id]["verdict"] == "EXISTS"
-    assert by_id[ok_id]["primary"] == 0.12
+    assert by_id[unscored_id]["verdict"] == "UNSCORED"      # no auto-EXISTS
+    assert by_id[unscored_id]["primary"] == 0.0
+    assert by_id[unscored_id]["gpu_h"] == 0.0               # truthful 0.0 preserved, not estimate
+    assert by_id[unscored_id]["date"] == "2026-07-06"       # worker date preserved
+    assert by_id[exists_id]["verdict"] == "EXISTS"          # explicit verdict honored
     assert by_id[fail_id]["verdict"] == "DEAD"
-    # everything else has no result yet
-    assert by_id["W0_P1"]["verdict"] == "PENDING"
+    assert by_id["W0_P2"]["verdict"] == "PENDING"           # no result yet
 
     # ledger files written and idempotent (row count == spec count)
     ledger = (tmp_path / "out" / "ledger.jsonl").read_text().strip().splitlines()
     assert len(ledger) == len(specs)
     md = (tmp_path / "out" / "LEDGER.md").read_text()
     assert "# Spatial-JEPA campaign LEDGER" in md
-    assert "EXISTS=1" in md and "DEAD=1" in md
+    assert "UNSCORED=1" in md and "EXISTS=1" in md and "DEAD=1" in md

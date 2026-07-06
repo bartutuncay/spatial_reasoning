@@ -5,3 +5,8 @@ exp_*/slurm/generated/
 **/logs/
 **/__pycache__/
 *.pyc
+
+# env/ here is a CODE dir (setup_env.sh + requirements.txt), not a virtualenv;
+# override the root .gitignore's 'env/' rule so it gets committed.
+!env/
+!env/**

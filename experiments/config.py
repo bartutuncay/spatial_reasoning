@@ -9,6 +9,10 @@ from __future__ import annotations
 # On-cluster project root: code is rsynced here, results/ live beneath it.
 ROOT = "/cluster/scratch/aleonel/spatial_jepa"
 
+# Single source of truth for where workers write and the collector reads.
+# (gen_sbatch renders `--out <RESULTS_DIR>/<id>`; campaign reads the same.)
+RESULTS_DIR = "results/jepa_campaign"
+
 # Environment to run workers in. We build our own conda env on scratch
 # (see experiments/env/setup_env.sh); CUDA is bundled in the torch wheels.
 #   ENV_KIND == "conda" -> conda activate ENV_PREFIX

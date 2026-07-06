@@ -8,7 +8,10 @@ REMOTE_HOST="euler"
 REMOTE_PATH="/cluster/scratch/aleonel/spatial_jepa"
 
 mkdir -p "${LOCAL}/results"
+# Exclude ALL weight/checkpoint forms (dirs and bare files) so nothing large
+# reaches the metered laptop; only small json/txt/csv results come down.
 rsync -av --progress \
-  --exclude='*ckpt*/' --exclude='*_weights*.pt' --exclude='*.pth' \
+  --exclude='*ckpt*/' --exclude='*checkpoint*/' \
+  --exclude='*.pt' --exclude='*.pth' --exclude='*.ckpt' --exclude='*.safetensors' \
   "${REMOTE_HOST}:${REMOTE_PATH}/results/" "${LOCAL}/results/"
 echo "pulled results <- ${REMOTE_HOST}:${REMOTE_PATH}/results"

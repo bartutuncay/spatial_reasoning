@@ -15,6 +15,7 @@ from experiments.config import (
     ENV_PATH,
     ENV_PREFIX,
     GPU_TABLE,
+    RESULTS_DIR,
     ROOT,
 )
 
@@ -35,7 +36,7 @@ export ENV_KIND={env_kind} ENV_PREFIX={env_prefix} ENV_PATH={env_path} ENV_NAME=
 source experiments/slurm/common_setup.sh
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 export PYTHONHASHSEED=0
-run_with_usr1_forwarding python -m {module} {args} --seed {seed} --out results/{id}
+run_with_usr1_forwarding python -m {module} {args} --seed {seed} --out {results_dir}/{id}
 """
 
 
@@ -70,6 +71,7 @@ def render(spec: dict, root: str = ROOT) -> str:
         module=spec["module"],
         args=_flatten_args(spec["args"]),
         seed=spec["seed"],
+        results_dir=RESULTS_DIR,
     )
 
 

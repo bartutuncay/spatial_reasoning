@@ -16,6 +16,8 @@ import glob
 import json
 import os
 import sys
+import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
@@ -127,8 +129,11 @@ def main():
     args = ap.parse_args()
     args.scene_folder = args.scene_folder or args.scene
 
+    t0 = time.time()
     result = PROBES[args.probe](args)
     result.setdefault("id", Path(args.out).name)
+    result["date"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    result.setdefault("gpu_h", round((time.time() - t0) / 3600.0, 5))
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     (out / "result.json").write_text(json.dumps(result, indent=2))

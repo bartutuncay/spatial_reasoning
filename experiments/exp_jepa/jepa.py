@@ -30,7 +30,9 @@ class Predictor(nn.Module):
         super().__init__()
         hidden = hidden or dim * 2
         layers, d = [], dim
-        for _ in range(max(depth - 1, 1)):
+        # depth = number of Linear layers; depth==1 is a genuinely shallow
+        # (single linear) predictor, so the shallow-vs-deep ablation is real.
+        for _ in range(max(depth - 1, 0)):
             layers += [nn.Linear(d, hidden), nn.LayerNorm(hidden), nn.GELU()]
             d = hidden
         layers += [nn.Linear(d, dim)]
@@ -61,7 +63,8 @@ def ema_update(target: nn.Module, online: nn.Module, momentum: float) -> None:
 def vicreg_terms(z: torch.Tensor, eps: float = 1e-4, std_target: float = 1.0):
     """VICReg variance + covariance anti-collapse regularizers for a batch (N,D)."""
     z = z - z.mean(dim=0, keepdim=True)
-    std = torch.sqrt(z.var(dim=0) + eps)
+    # biased variance (divide by N, not N-1) so batch size 1 gives 0, not NaN
+    std = torch.sqrt(z.var(dim=0, unbiased=False) + eps)
     var_loss = F.relu(std_target - std).mean()
     n, d = z.shape
     cov = (z.T @ z) / max(n - 1, 1)

@@ -102,7 +102,8 @@ def umeyama(src, dst, with_scale=True):
     R = U @ S @ Vt
     if with_scale:
         var_s = (sc ** 2).sum() / n
-        scale = float(np.sum(D * np.diag(S)) / var_s)
+        # degenerate (stationary) source trajectory -> no scale to estimate
+        scale = float(np.sum(D * np.diag(S)) / var_s) if var_s > 1e-12 else 1.0
     else:
         scale = 1.0
     t = mu_d - scale * R @ mu_s
