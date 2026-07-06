@@ -13,5 +13,6 @@ source "$(conda info --base)/etc/profile.d/conda.sh"
 conda activate /cluster/scratch/aleonel/spatial_jepa/env
 python -m experiments.exp_jepa.locate \
   --objective "${OBJ}" --map-cond "${MAP}" --head "${HEAD}" --freeze "${FRZ}" \
+  --map-frac "${MF:-1.0}" --blur "${BL:-0.0}" \
   --tier "${TIER:-shakedown}" --scene "${SCENE:-office}" \
-  --out "results/locate_campaign/${ID}"
+  --out "results/${RESDIR:-locate_campaign}/${ID}"

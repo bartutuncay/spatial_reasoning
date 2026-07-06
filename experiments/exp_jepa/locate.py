@@ -59,6 +59,15 @@ def _mlp(i, h, o, n=2):
     return nn.Sequential(*layers, nn.Linear(d, o))
 
 
+def _maybe_blur(img, sigma):
+    """Gaussian blur the query image (degraded-query stress axis)."""
+    if sigma and sigma > 0:
+        import torchvision.transforms.functional as TF
+        k = int(2 * round(2 * sigma) + 1)
+        img = TF.gaussian_blur(img, kernel_size=k, sigma=float(sigma))
+    return img
+
+
 class Localizer(nn.Module):
     def __init__(self, img_enc, latent_dim, head, map_cond, direction):
         super().__init__()
@@ -66,6 +75,7 @@ class Localizer(nn.Module):
         self.head, self.map_cond, self.direction = head, map_cond, direction
         self.node_enc = _mlp(6, latent_dim, latent_dim)
         self.offset_mlp = _mlp(2 * latent_dim, latent_dim, 3)
+        self.offset_scale = nn.Parameter(torch.ones(3))    # learnable bound on the offset
         self.apr_mlp = _mlp(latent_dim, latent_dim, 3)     # no-map regressor
         self.dir_mlp = _mlp(latent_dim, latent_dim, 3)
         self.d = latent_dim
@@ -81,21 +91,25 @@ class Localizer(nn.Module):
             if self.head == "anchor_offset":
                 anchor = P[scores.argmax(dim=-1)]          # [B, 3]
                 ctx = w @ S                                # [B, D]
-                pos = anchor + self.offset_mlp(torch.cat([q, ctx], dim=-1))
+                # BOUNDED local correction: tanh*scale so the offset can't blow
+                # up in a large / outlier-laden world frame (was 144m unbounded)
+                off = torch.tanh(self.offset_mlp(torch.cat([q, ctx], dim=-1)))
+                pos = anchor + off * self.offset_scale
             else:  # barycenter
                 pos = w @ P                                # [B, 3]
         d = F.normalize(self.dir_mlp(q), dim=-1) if self.direction else None
         return pos, d
 
 
-def _robust_scene(g, m_sub, dev):
+def _robust_scene(g, m_sub, dev, map_frac=1.0):
     P = np.asarray(g.pos, dtype=np.float64)
     C = np.asarray(g.rgb, dtype=np.float64) if hasattr(g, "rgb") else np.zeros_like(P)
     lo, hi = np.percentile(P, 1, 0), np.percentile(P, 99, 0)
     keep = np.all((P >= lo) & (P <= hi), axis=1)
     P, C = P[keep], C[keep]
-    if P.shape[0] > m_sub:
-        idx = np.random.default_rng(0).choice(P.shape[0], m_sub, replace=False)
+    target = max(32, int(m_sub * map_frac))   # map_frac<1 => partial/sparse map
+    if P.shape[0] > target:
+        idx = np.random.default_rng(0).choice(P.shape[0], target, replace=False)
         P, C = P[idx], C[idx]
     Pn = (P - P.mean(0)) / (P.std(0) + 1e-6)
     F_feat = np.concatenate([Pn, C], axis=1)               # [M, 6]
@@ -169,7 +183,7 @@ def run(args):
     walks = Path(args.processed_root) / args.scene / "random_walks"
     graph = torch.load(Path(args.processed_root) / args.scene / "scan_pcd_graph" /
                        "combined_aligned.pt", map_location="cpu", weights_only=False)
-    P, Ffeat = _robust_scene(graph, args.scene_nodes, dev)
+    P, Ffeat = _robust_scene(graph, args.scene_nodes, dev, map_frac=args.map_frac)
 
     pre_steps, loc_steps = TIER.get(args.tier, (40, 300))
     vae = autoenc.ImageGraphVAE(args.latent_dim).to(dev).train()
@@ -193,6 +207,7 @@ def run(args):
         except StopIteration:
             it = iter(tr); img, loc, vd = next(it)
         img, loc, vd = img.to(dev), loc.to(dev), vd.to(dev)
+        img = _maybe_blur(img, args.blur)
         pos, d = model(img, P, Ffeat)
         loss = F.smooth_l1_loss(pos, loc)
         if d is not None:
@@ -204,7 +219,7 @@ def run(args):
     preds, gts, dirs, gtdirs = [], [], [], []
     with torch.no_grad():
         for img, loc, vd in DataLoader(_QueryDS(ev_files), batch_size=16):
-            pos, d = model(img.to(dev), P, Ffeat)
+            pos, d = model(_maybe_blur(img.to(dev), args.blur), P, Ffeat)
             preds.append(pos.cpu().numpy()); gts.append(loc.numpy())
             if d is not None:
                 dirs.append(d.cpu().numpy()); gtdirs.append(F.normalize(vd, dim=-1).numpy())
@@ -229,6 +244,7 @@ def run(args):
             **{f"recall@{k}": v for k, v in recall.items()},
             "objective": args.objective, "map_cond": args.map_cond,
             "head": args.head, "freeze": bool(args.freeze),
+            "map_frac": args.map_frac, "blur": args.blur,
             "n_eval": int(gt.shape[0]), "device": str(dev),
         },
         "notes": (f"{args.objective}/{args.map_cond}/{args.head}/"
@@ -248,6 +264,8 @@ def main():
     ap.add_argument("--tier", default="shakedown")
     ap.add_argument("--latent-dim", type=int, default=128)
     ap.add_argument("--scene-nodes", type=int, default=2048)
+    ap.add_argument("--map-frac", type=float, default=1.0)   # partial-map stress
+    ap.add_argument("--blur", type=float, default=0.0)       # degraded-query stress
     ap.add_argument("--processed-root",
                     default=os.environ.get("SJEPA_PROCESSED_ROOT", "datasets_processed"))
     ap.add_argument("--seed", type=int, default=0)
