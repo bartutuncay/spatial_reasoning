@@ -30,35 +30,28 @@ SCENE = os.environ.get("SJEPA_SCENE_KEY", "office")
 # --------------------------------------------------------------------------- #
 DEFAULTS = {
     "objective": "jepa",
-    "direction": "rgb2geo",
     "predictor": "deep",
-    "mask_ratio": 0.5,
     "ema": 0.996,
     "collapse": "ema_vicreg",
-    "rotation": "dir",
     "latent_dim": 128,
     "node_feats": "full",
 }
+# Only axes WIRED into train.py are swept. direction / mask_ratio / rotation are
+# deferred to Wave B (graph-masking + localization/rotation heads).
 AXES = {
     "objective": ["jepa", "symalign", "recon", "contrastive"],  # the killer ablation
-    "direction": ["rgb2geo", "geo2rgb", "bidir"],
     "predictor": ["shallow", "deep"],
-    "mask_ratio": [0.0, 0.25, 0.5, 0.75],
     "ema": [0.99, 0.996, 0.999],
-    "collapse": ["ema", "vicreg", "ema_vicreg", "whiten"],
-    "rotation": ["dir", "none"],
+    "collapse": ["ema", "vicreg", "ema_vicreg"],
     "latent_dim": [64, 128, 256],
     "node_feats": ["full", "geom_only", "no_rgb"],
 }
 
 _HYPO = {
-    "objective": "predict-in-latent (jepa) removes the map-conditioning inversion vs recon/symalign/contrastive",
-    "direction": "RGB->geometry prediction is the informative direction at inference",
+    "objective": "predict-in-latent (jepa) beats recon/symalign/contrastive on the shared representation",
     "predictor": "an asymmetric predictor is load-bearing (vs symalign)",
-    "mask_ratio": "intra-graph masking earns the world-model over plain alignment",
-    "ema": "an EMA target prevents collapse and beats same-encoder re-encode",
+    "ema": "an EMA target keeps the representation stable and high-rank",
     "collapse": "EMA+VICReg keeps embedding rank high on 13 scenes",
-    "rotation": "a direction head makes pose-recall computable and beats NN-rotation",
     "latent_dim": "representation quality vs latent width",
     "node_feats": "geometry-only vs +rgb (appearance-retrieval rebuttal)",
 }
@@ -145,6 +138,10 @@ def build_specs():
 def write_specs(specs, specs_dir):
     specs_dir = Path(specs_dir)
     specs_dir.mkdir(parents=True, exist_ok=True)
+    keep = {f"{s['id']}.json" for s in specs}
+    for old in specs_dir.glob("*.json"):   # drop stale specs from prior runs
+        if old.name not in keep:
+            old.unlink()
     for s in specs:
         (specs_dir / f"{s['id']}.json").write_text(json.dumps(s, indent=2))
     return len(specs)

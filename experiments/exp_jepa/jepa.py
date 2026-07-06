@@ -104,8 +104,11 @@ def jepa_objective(z_ctx, z_tgt, predictor=None, objective="jepa",
     terms: dict = {}
     if objective == "jepa":
         assert predictor is not None, "jepa needs a predictor"
-        pred = predictor(z_ctx)
-        terms["pred"] = F.smooth_l1_loss(pred, z_tgt.detach())
+        # predict on the unit sphere: bounds the target magnitude so the loss
+        # cannot diverge as VICReg spreads the (unnormalized) embeddings.
+        pred = F.normalize(predictor(z_ctx), dim=-1)
+        tgt = F.normalize(z_tgt.detach(), dim=-1)
+        terms["pred"] = F.smooth_l1_loss(pred, tgt)
         v, c = vicreg_terms(z_ctx)
         terms["vic_var"], terms["vic_cov"] = v, c
         loss = terms["pred"] + vicreg_w[0] * v + vicreg_w[1] * c

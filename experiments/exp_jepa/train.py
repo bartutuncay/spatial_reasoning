@@ -71,6 +71,9 @@ def train(args):
     opt = torch.optim.AdamW(params, lr=args.lr, weight_decay=1e-4)
 
     steps = TIER_STEPS.get(args.tier, 60)
+    # --collapse ablation: which anti-collapse mechanism the jepa arm uses.
+    use_ema = args.objective == "jepa" and args.collapse in ("ema", "ema_vicreg")
+    vicreg_w = (1.0, 0.04) if "vicreg" in args.collapse else (0.0, 0.0)
     losses, emb_buf = [], []   # accumulate context embeddings for a meaningful rank
     it = iter(loader)
     for _ in range(steps):
@@ -82,6 +85,9 @@ def train(args):
 
         img = batch.img.permute(0, 3, 1, 2).to(torch.float32).to(dev)
         pcd = batch.pcd.to(torch.float32).to(dev)
+        if args.node_feats in ("geom_only", "no_rgb"):
+            pcd = pcd.clone()
+            pcd[:, 4:7] = 0.0   # drop RGB -> geometry-only (appearance-retrieval rebuttal)
         bvec = batch.batch.to(dev)
         ei = batch.edge_index.to(dev)
         ew = autoenc.normalize_edge_weights(batch.edge_weights.to(torch.float32)).to(dev)
@@ -95,10 +101,13 @@ def train(args):
             _, mu_img, _ = vae.img_enc(img)                 # context (RGB)
             _, mu_pcd, _ = vae.pcd_enc(pcd, bvec, ei, ew)   # online target latent
             if args.objective == "jepa":
-                with torch.no_grad():
-                    _, tgt_mu, _ = ema_pcd(pcd, bvec, ei, ew)
+                if use_ema:
+                    with torch.no_grad():
+                        _, tgt_mu, _ = ema_pcd(pcd, bvec, ei, ew)
+                else:
+                    tgt_mu = mu_pcd.detach()
                 loss, _ = jepa_objective(mu_img, tgt_mu, predictor=predictor,
-                                         objective="jepa")
+                                         objective="jepa", vicreg_w=vicreg_w)
             else:  # symalign / contrastive
                 loss, _ = jepa_objective(mu_img, mu_pcd, predictor=predictor,
                                          objective=args.objective)
@@ -107,7 +116,7 @@ def train(args):
         opt.zero_grad()
         loss.backward()
         opt.step()
-        if args.objective == "jepa":
+        if use_ema:
             ema_update(ema_pcd, vae.pcd_enc, args.ema)
 
         losses.append(float(loss.detach()))
@@ -152,8 +161,8 @@ def main():
     ap.add_argument("--rotation", default="dir")
     ap.add_argument("--latent-dim", type=int, default=128)
     ap.add_argument("--node-feats", default="full")
-    ap.add_argument("--batch-size", type=int, default=2)
-    ap.add_argument("--lr", type=float, default=1e-4)
+    ap.add_argument("--batch-size", type=int, default=4)
+    ap.add_argument("--lr", type=float, default=1e-5)  # lower: JEPA diverged at 1e-4
     ap.add_argument("--processed-root",
                     default=os.environ.get("SJEPA_PROCESSED_ROOT", "datasets_processed"))
     ap.add_argument("--seed", type=int, default=0)
