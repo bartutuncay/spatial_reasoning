@@ -33,6 +33,7 @@ sys.path.insert(0, str(ROOT))
 from experiments.exp_jepa.jepa import (  # noqa: E402
     Predictor,
     clone_as_target,
+    effective_rank,
     ema_update,
     jepa_objective,
 )
@@ -70,7 +71,7 @@ def train(args):
     opt = torch.optim.AdamW(params, lr=args.lr, weight_decay=1e-4)
 
     steps = TIER_STEPS.get(args.tier, 60)
-    losses, ranks = [], []
+    losses, emb_buf = [], []   # accumulate context embeddings for a meaningful rank
     it = iter(loader)
     for _ in range(steps):
         try:
@@ -90,19 +91,18 @@ def train(args):
             out = vae(img, pcd, bvec, ei, ew,
                       batch.ei_camera.to(dev), batch.ea_camera.to(dev))
             loss, _ = autoenc.compute_loss(out, img, depth)
-            rank = None
         else:
             _, mu_img, _ = vae.img_enc(img)                 # context (RGB)
             _, mu_pcd, _ = vae.pcd_enc(pcd, bvec, ei, ew)   # online target latent
             if args.objective == "jepa":
                 with torch.no_grad():
                     _, tgt_mu, _ = ema_pcd(pcd, bvec, ei, ew)
-                loss, terms = jepa_objective(mu_img, tgt_mu, predictor=predictor,
-                                             objective="jepa")
+                loss, _ = jepa_objective(mu_img, tgt_mu, predictor=predictor,
+                                         objective="jepa")
             else:  # symalign / contrastive
-                loss, terms = jepa_objective(mu_img, mu_pcd, predictor=predictor,
-                                             objective=args.objective)
-            rank = terms.get("rank_ctx")
+                loss, _ = jepa_objective(mu_img, mu_pcd, predictor=predictor,
+                                         objective=args.objective)
+            emb_buf.append(mu_img.detach().float().cpu())
 
         opt.zero_grad()
         loss.backward()
@@ -111,10 +111,12 @@ def train(args):
             ema_update(ema_pcd, vae.pcd_enc, args.ema)
 
         losses.append(float(loss.detach()))
-        ranks.append(rank)
 
-    final_rank = next((r for r in reversed(ranks) if r is not None), None)
-    collapsed = final_rank is not None and final_rank < 2.0
+    # effective rank over ALL accumulated context embeddings (not one small
+    # batch), and only judge collapse once there are enough samples to trust it.
+    n_emb = sum(e.shape[0] for e in emb_buf)
+    final_rank = effective_rank(torch.cat(emb_buf, dim=0)) if n_emb >= 8 else None
+    collapsed = final_rank is not None and n_emb >= 16 and final_rank < 2.0
     unwired = [a for a in NOT_WIRED if getattr(args, a, None) not in (None, "full", "ema_vicreg")]
     return {
         "status": "ok",
@@ -124,7 +126,8 @@ def train(args):
         "metrics": {
             "loss_first": losses[0] if losses else None,
             "loss_last": losses[-1] if losses else None,
-            "rank_ctx_last": final_rank,
+            "rank_ctx_accum": final_rank,
+            "n_ctx_emb": n_emb,
             "steps": len(losses),
             "device": str(dev),
             "objective": args.objective,

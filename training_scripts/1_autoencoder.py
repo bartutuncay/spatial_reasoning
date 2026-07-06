@@ -8,7 +8,16 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import ConcatDataset, DataLoader
 
-ROOT = Path(__file__).resolve().parents[2]
+def _find_repo_root(start: Path) -> Path:
+    # Walk up to the ancestor that actually contains models/1_img_enc.py, so the
+    # sub-model loader works whether the repo is flat (spatial_jepa/) or nested.
+    for p in [start, *start.parents]:
+        if (p / "models" / "1_img_enc.py").exists():
+            return p
+    return start.parents[1]
+
+
+ROOT = _find_repo_root(Path(__file__).resolve().parent)
 if str(ROOT) not in sys.path:
     sys.path.append(str(ROOT))
 
