@@ -15,3 +15,7 @@ py7zr==0.22.0
 matplotlib==3.9.2
 pyarrow==17.0.0
 tqdm==4.66.5
+
+# Reference-model extraction (wave 1, installed by fetch_ref_weights.sbatch)
+transformers>=4.45,<5
+accelerate

@@ -16,6 +16,7 @@ rsync -av --checksum --delete \
   --exclude='/env/' --exclude='/data/' --exclude='/data_bartu/' \
   --exclude='/results/' --exclude='/logs/' \
   --exclude='/datasets/' --exclude='/datasets_processed/' \
+  --exclude='/datasets_replica/' --exclude='/hf_cache/' --exclude='/torch_hub/' \
   --exclude='/1_model/' --exclude='/4_model_locator/' \
   --exclude='.venv/' \
   --exclude='.git/' --exclude='__pycache__/' --exclude='*.pyc' \
