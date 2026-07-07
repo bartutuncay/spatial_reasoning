@@ -14,9 +14,9 @@ import torch
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 from experiments.exp_anatomy.common import (  # noqa: E402
-    SCENES, depth_grid, encode_arm_latents, finish, scene_files, seed_split,
+    SCENES, depth_grid, encode_arm_latents, finish, pretrain_encoder, scene_files, seed_split,
 )
-from experiments.exp_jepa.fewshot import PRETRAIN_STEPS, _pretrain_pool  # noqa: E402
+from experiments.exp_jepa.fewshot import PRETRAIN_STEPS  # noqa: E402
 from experiments.exp_jepa.locate import _load_module  # noqa: E402
 
 G = 16  # grid side
@@ -59,8 +59,8 @@ def run(args):
         autoenc = _load_module("sjepa_autoenc", ROOT / "training_scripts" / "1_autoencoder.py")
         vae = autoenc.ImageGraphVAE(args.latent_dim).to(dev).train()
         if args.objective != "scratch":
-            _pretrain_pool(vae, autoenc, [root / s / "random_walks" for s in SCENES],
-                           args.objective, PRETRAIN_STEPS.get(args.tier, 200), dev)
+            pretrain_encoder(vae, autoenc, [root / s / "random_walks" for s in SCENES],
+                             args.objective, PRETRAIN_STEPS.get(args.tier, 200), dev)
         vae.img_enc.eval()
         Ztr, _, _ = encode_arm_latents(vae, tr_files, dev)
         Zev, _, _ = encode_arm_latents(vae, ev_files, dev)
@@ -105,7 +105,7 @@ def run(args):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--objective", default="scratch",
-                    choices=["scratch", "jepa", "symalign", "contrastive", "recon"])
+                    choices=["scratch", "jepa", "symalign", "contrastive", "recon", "rgb_only"])
     ap.add_argument("--features-dir", default=None)
     ap.add_argument("--tier", default="shakedown")
     ap.add_argument("--head-steps", type=int, default=400)

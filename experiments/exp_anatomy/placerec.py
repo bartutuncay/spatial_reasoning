@@ -15,9 +15,9 @@ import torch.nn.functional as F
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 from experiments.exp_anatomy.common import (  # noqa: E402
-    SCENES, encode_arm_latents, finish, scene_files, seed_split,
+    SCENES, encode_arm_latents, finish, pretrain_encoder, scene_files, seed_split,
 )
-from experiments.exp_jepa.fewshot import PRETRAIN_STEPS, _pretrain_pool  # noqa: E402
+from experiments.exp_jepa.fewshot import PRETRAIN_STEPS  # noqa: E402
 from experiments.exp_jepa.locate import _load_module  # noqa: E402
 
 
@@ -39,8 +39,8 @@ def _gather(args, dev):
         vae = autoenc.ImageGraphVAE(args.latent_dim).to(dev).train()
         root = Path(args.processed_root)
         if args.objective != "scratch":
-            _pretrain_pool(vae, autoenc, [root / s / "random_walks" for s in SCENES],
-                           args.objective, PRETRAIN_STEPS.get(args.tier, 200), dev)
+            pretrain_encoder(vae, autoenc, [root / s / "random_walks" for s in SCENES],
+                             args.objective, PRETRAIN_STEPS.get(args.tier, 200), dev)
         vae.img_enc.eval()
         for si, sc in enumerate(SCENES):
             tr_f, ev_f = seed_split(scene_files(root, sc))
@@ -94,7 +94,7 @@ def run(args):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--objective", default="scratch",
-                    choices=["scratch", "jepa", "symalign", "contrastive", "recon"])
+                    choices=["scratch", "jepa", "symalign", "contrastive", "recon", "rgb_only"])
     ap.add_argument("--features-dir", default=None)
     ap.add_argument("--tier", default="shakedown")
     ap.add_argument("--head-steps", type=int, default=300)
