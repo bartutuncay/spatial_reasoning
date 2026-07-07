@@ -61,8 +61,10 @@ New paper direction (see `docs/superpowers/specs/2026-07-07-capability-anatomy-d
 **objective × modality × capability** matrix. Wave 1 = first two capability
 **columns** (C7 place recognition, C3 metric depth) across 5 trained-arm rows
 (2 seeds) + 4 frozen foundation-model reference rows on Bartu's 5 ETH3D scenes.
-28 jobs, 26 ok, 2 DEAD (both re-running after fixes). Frozen encoder + linear
-probe; auto-collected via `experiments/exp_anatomy/tally_wave1.py`.
+28 jobs, **28 ok** (2 initial DEAD re-ran green after the SVD + transient-node
+fixes below). Frozen encoder + linear probe; auto-collected via
+`experiments/exp_anatomy/tally_wave1.py`. Replica v1 (18 scenes) downloaded to
+scratch — ready for the generality/modality waves.
 
 ## C7 — place recognition (which of 5 scenes; acc, majority floor 0.20)
 | row | linear-probe acc | NN@1 retrieval |
@@ -96,6 +98,7 @@ probe; auto-collected via `experiments/exp_anatomy/tally_wave1.py`.
 | contrastive | 1.946 | 0.281 |
 | jepa | 1.862 | 0.300 |
 | ref: DINOv2-B | **0.434** | **0.511** |
+| ref: SigLIP | 0.499 | 0.497 |
 | ref: DINOv2-S | 0.532 | 0.474 |
 | ref: Qwen2-VL-2B tower | 0.569 | 0.448 |
 
@@ -128,3 +131,6 @@ and (b) more scenes / Replica scale to lift the trained rows off the floor.
 - **`eth_proxy`** required for any compute-node internet (both download jobs); GPU
   probes forced `HF_HUB_OFFLINE=1`.
 - **Replica `download.sh` needs `pigz`** (absent on nodes) → env `pigz` on PATH.
+  Replica v1 (18 scenes) now fully extracted on scratch.
+- **SigLIP depth CUDA device-side assert** (1 cell): identical re-run passed
+  (AbsRel 0.499) → confirmed transient node fault, not a code path.
