@@ -68,6 +68,13 @@ def run(args):
     Ytr, Mtr = _depth_targets(tr_files)
     Yev, Mev = _depth_targets(ev_files)
 
+    # Scale-invariant probe protocol: z-score features by TRAIN stats before the
+    # linear head. Un-normalized rows (e.g. rgb_only InfoNCE latents with huge
+    # norms) otherwise diverge the head during training -> inf/NaN AbsRel.
+    fmu = Ztr.mean(0); fsd = Ztr.std(0) + 1e-6
+    Ztr = (Ztr - fmu) / fsd
+    Zev = (Zev - fmu) / fsd
+
     head = torch.nn.Linear(Ztr.shape[1], G * G).to(dev)
     opt = torch.optim.AdamW(head.parameters(), lr=1e-3)
     X = torch.as_tensor(Ztr, dtype=torch.float32, device=dev)
@@ -109,7 +116,8 @@ def run(args):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--objective", default="scratch",
-                    choices=["scratch", "jepa", "symalign", "contrastive", "recon", "rgb_only"])
+                    choices=["scratch", "jepa", "symalign", "contrastive", "recon", "rgb_only",
+                             "fuse_cj_25", "fuse_cj_50", "fuse_cj_75"])
     ap.add_argument("--features-dir", default=None)
     ap.add_argument("--tier", default="shakedown")
     ap.add_argument("--head-steps", type=int, default=400)

@@ -97,9 +97,47 @@ def relative_action(si, sj):
     return np.concatenate([lj - li, vj - vi]).astype(np.float32)
 
 
+def fuse_lambda(objective):
+    """fuse_cj_<pct> -> lambda in (0,1); None for non-fused objectives."""
+    if objective.startswith("fuse_cj_"):
+        return int(objective.rsplit("_", 1)[1]) / 100.0
+    return None
+
+
 def pretrain_encoder(vae, autoenc, walk_dirs, objective, steps, dev):
-    """Dispatch: rgb_only -> augmentation-InfoNCE on img_enc only; else the
-    cross-modal four-arm pretrainer (fewshot._pretrain_pool)."""
+    """Dispatch: fuse_cj_<pct> -> lam*InfoNCE + (1-lam)*JEPA (the frontier rows);
+    rgb_only -> augmentation-InfoNCE on img_enc only; else the cross-modal
+    four-arm pretrainer (fewshot._pretrain_pool)."""
+    lam = fuse_lambda(objective)
+    if lam is not None:
+        from torch.utils.data import ConcatDataset, DataLoader
+        from experiments.exp_jepa.jepa import (
+            Predictor, clone_as_target, ema_update, info_nce, jepa_objective,
+        )
+        ds = ConcatDataset([autoenc.RandomWalkAutoencoderDataset(str(d)) for d in walk_dirs])
+        loader = DataLoader(ds, batch_size=4, shuffle=True,
+                            collate_fn=autoenc.collate_random_walk_autoencoder)
+        predictor = Predictor(vae.pcd_enc.mu_head.out_features).to(dev)
+        ema_pcd = clone_as_target(vae.pcd_enc).to(dev)
+        opt = torch.optim.AdamW(list(vae.parameters()) + list(predictor.parameters()), lr=1e-5)
+        it = iter(loader)
+        for _ in range(steps):
+            try:
+                b = next(it)
+            except StopIteration:
+                it = iter(loader); b = next(it)
+            img = b.img.permute(0, 3, 1, 2).float().to(dev)
+            pcd = b.pcd.float().to(dev); bvec = b.batch.to(dev); ei = b.edge_index.to(dev)
+            ew = autoenc.normalize_edge_weights(b.edge_weights.float()).to(dev)
+            _, mu_i, _ = vae.img_enc(img)
+            _, mu_p, _ = vae.pcd_enc(pcd, bvec, ei, ew)
+            with torch.no_grad():
+                _, tgt, _ = ema_pcd(pcd, bvec, ei, ew)
+            j_loss, _ = jepa_objective(mu_i, tgt, predictor=predictor, objective="jepa")
+            loss = lam * info_nce(mu_i, mu_p) + (1.0 - lam) * j_loss
+            opt.zero_grad(); loss.backward(); opt.step()
+            ema_update(ema_pcd, vae.pcd_enc, 0.996)
+        return
     if objective != "rgb_only":
         from experiments.exp_jepa.fewshot import _pretrain_pool
         return _pretrain_pool(vae, autoenc, walk_dirs, objective, steps, dev)

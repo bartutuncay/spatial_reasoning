@@ -56,6 +56,14 @@ def test_split_seeds_holds_out_top():
     assert sorted(ev) == [7, 8, 9] and len(tr) == 7
 
 
+def test_fuse_lambda_parser():
+    from experiments.exp_anatomy.common import fuse_lambda
+    assert fuse_lambda("fuse_cj_25") == 0.25
+    assert fuse_lambda("fuse_cj_50") == 0.5
+    assert fuse_lambda("fuse_cj_75") == 0.75
+    assert fuse_lambda("jepa") is None
+
+
 def test_relative_action_world_delta():
     si = {"loc": [0.0, 0.0, 0.0], "view_dir": [1.0, 0.0, 0.0]}
     sj = {"loc": [1.0, 2.0, 0.0], "view_dir": [0.0, 1.0, 0.0]}
