@@ -18,8 +18,9 @@ failed bet.
 
 ## 2. Thesis
 
-> There is no single "spatial representation." The objective used to condition a multimodal
-> (RGB + point-cloud) embedding space determines *which* spatial capabilities it supports:
+> There is no single "spatial representation." The objective — and the set of spatial modalities
+> (point cloud, 3D mesh, 2D layout, depth) — used to condition a multimodal embedding space
+> determines *which* spatial capabilities it supports:
 > invariance-inducing predictive objectives trade within-scene discriminative power (localization,
 > place recognition) for cross-scene geometric and dynamical structure (depth, rollout,
 > navigation), and information decomposition (sufficiency/invariance + PID synergy) explains the
@@ -87,6 +88,37 @@ train/val/test splits per column across all rows; 3 seeds; report mean ± std.
   (Liang-style estimators). Synergy is the formalization of "richness of the multimodal space."
 - Effective rank (have), alignment/uniformity (Wang & Isola), CKA similarity between row spaces.
 
+### Axis 3: modality lattice — richness vs. modalities of space (added 2026-07-07)
+
+How does the embedding's capability profile change as modalities of space are added to the
+conditioning set? RGB stays the **anchor** (only query-time modality); each added modality gets
+its own encoder and one pairwise RGB↔modality loss term in the existing trainer — no fusion
+architecture needed.
+
+| Modality | ETH3D | Replica | Encoder | Cost |
+|---|---|---|---|---|
+| RGB (anchor) | ✅ | ✅ | `ImgEnc` | have |
+| Point-cloud graph | ✅ | ✅ (mesh-sampled) | `PCDEnc` | have |
+| 3D model (mesh) | ✗ (skip; Poisson too noisy) | ✅ native | `PCDEnc` variant: mesh-edge graph + normal features | small |
+| 2D layout (floor plan) | ✅ derivable | ✅ derivable | small CNN on top-down BEV occupancy raster | small |
+| Per-view depth (egocentric) | ✅ in `.pt` walks | ✅ | 1-channel CNN | ~free |
+| Semantics | ✗ | ✅ native | label-map CNN | free, Replica-only |
+
+**Sweep design (combinatorics-controlled):** after Wave 2 fixes the top-2 objectives, run a
+**nested chain** RGB → +PCD → +mesh → +layout → +depth (→ +semantics, Replica) for the cumulative
+richness curve, plus **leave-one-out from the full set** for per-modality necessity.
+≈ 11–12 modality-sets × 2 objectives × 7 probes × 3 seeds ≈ 300–450 short jobs.
+Egocentric (depth) vs allocentric (PCD/mesh/layout) contrast is reported explicitly; semantics
+tests whether semantic space substitutes for geometric space.
+
+**In-modality rule (honesty):** when a modality is in the conditioning set, the probe that
+directly targets it (e.g., depth-conditioned rows on C3) is flagged *in-modality* in every
+table/figure and excluded from capability-gain claims.
+
+**PID under >2 sources:** full multivariate PID is intractable; report pairwise-vs-anchor PID and
+the **marginal synergy** of each added modality per task (chain differences), with estimator
+sensitivity analysis.
+
 ### Stress and scale axes (reuse existing switches)
 
 - `--map-frac` ∈ {1.0, 0.75, 0.5, 0.25} and `--blur` on C1 for best/worst rows.
@@ -112,8 +144,11 @@ workstation↔NAS bridge.
   DEAD-verdict anything broken before the sweep.
 - **W3–4 — The wide sweep.** Full matrix on ETH3D: 8 rows × 7 columns × 3 seeds ≈ 200–300 short
   GPU jobs streamed through `gpuhe.4h`/`gpupr.4h`.
-- **W5–6 — Generality + curves.** Replica matrix; ScanNet subset if approved; data-scale curves;
-  stress axes on best/worst cells.
+- **W5–6 — Generality + modality lattice.** Replica matrix; ScanNet subset if approved;
+  **modality-lattice sweep** (nested chain + leave-one-out at top-2 objectives — Replica-first,
+  since mesh/semantics only exist there); data-scale curves; stress axes on best/worst cells.
+  W1–2 additionally builds the three new modality encoders (mesh-graph, BEV-layout CNN, depth CNN)
+  and the BEV rasterization preprocessing.
 - **W7–8 — Analysis.** InfoNCE bounds, PID estimation, CKA; dissociation analysis; *stretch:*
   VLM-injection demo (adapter from our embedding into Qwen2-VL-2B, spatial-QA delta) only if
   synergy appears where injection could plausibly help.
@@ -127,7 +162,10 @@ workstation↔NAS bridge.
 - **F3** PID bars per task: where synergy lives (and where it doesn't).
 - **F4** Data-scale curves per objective.
 - **F5** Stress curves (map-frac, blur).
-- **T1** Full matrix with mean ± std, floors, ceilings.
+- **F6** **Modality-richness curve:** capability (per task) and marginal PID synergy vs. the nested
+  modality chain RGB → +PCD → +mesh → +layout → +depth (→ +semantics), with leave-one-out
+  necessity bars — the "what does each abstraction of space buy?" figure.
+- **T1** Full matrix with mean ± std, floors, ceilings, in-modality cells flagged.
 
 ## 8. Reuse map (nothing thrown away)
 
@@ -169,4 +207,6 @@ workstation↔NAS bridge.
 - Second dataset: **Replica now, ScanNet request filed in parallel** (PI, 2026-07-07).
 - VLM injection demo: **stretch goal**, W7–8, only on evidence of synergy (PI, 2026-07-07).
 - Reference rows: **DINOv2-S/B + MASt3R/DUSt3R + SigLIP/CLIP + Qwen2-VL-2B vision tower** (PI, 2026-07-07).
+- Modality lattice (Axis 3): **nested chain + leave-one-out at top-2 objectives**; modality set =
+  {RGB, PCD, mesh, 2D layout, per-view depth} + semantics (Replica-only) (PI, 2026-07-07).
 - Action item (PI): file ScanNet ToS request (institutional email required).
