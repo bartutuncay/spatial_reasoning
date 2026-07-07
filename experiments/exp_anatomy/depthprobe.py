@@ -79,7 +79,11 @@ def run(args):
         opt.zero_grad(); loss.backward(); opt.step()
 
     def absrel_d125(pred_log, y_log, m):
-        p, y = torch.exp(pred_log[m]), torch.exp(y_log[m])
+        # Clamp to a physical depth range [1mm, 1km] before exp: a divergent linear
+        # head (seen with high-norm rgb_only latents) can emit huge log-depths that
+        # overflow to inf. Clamping bounds the metric without touching in-range rows.
+        p = torch.exp(pred_log[m].clamp(-6.9, 6.9))
+        y = torch.exp(y_log[m])
         absrel = float(((p - y).abs() / y).mean())
         d125 = float((torch.maximum(p / y, y / p) < 1.25).float().mean())
         return absrel, d125
