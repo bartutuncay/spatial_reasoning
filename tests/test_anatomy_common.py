@@ -20,6 +20,16 @@ def test_depth_grid_masks_invalid():
     assert torch.allclose(g[:8], torch.log(torch.tensor(2.0)).expand(8))
 
 
+def test_depth_grid_nan_and_inf_are_invalid():
+    d = torch.full((64, 64), float("nan"))
+    d[:16] = 3.0
+    d[16:32] = float("inf")
+    g, m = depth_grid(d, g=4)
+    assert not torch.isnan(g).any() and not torch.isinf(g).any()
+    assert m[:4].all() and not m[4:].any()       # only the 3.0 rows valid
+    assert torch.allclose(g[:4], torch.log(torch.tensor(3.0)).expand(4))
+
+
 def test_to_uint8_handles_both_ranges():
     a = to_uint8(np.ones((4, 4, 3), dtype=np.float32) * 0.5)     # 0-1 range
     b = to_uint8(np.ones((4, 4, 3), dtype=np.float32) * 200.0)   # 0-255 range

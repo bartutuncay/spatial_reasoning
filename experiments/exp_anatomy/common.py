@@ -37,6 +37,7 @@ def depth_grid(depth, g=16):
     no valid (>0) pixels. Pools SUM(valid depth)/COUNT(valid) per cell so
     invalid pixels never bias a cell."""
     d = torch.as_tensor(depth, dtype=torch.float32).unsqueeze(0).unsqueeze(0)
+    d = torch.nan_to_num(d, nan=0.0, posinf=0.0, neginf=0.0)  # NaN/inf = invalid
     valid = (d > 0).float()
     s = F.adaptive_avg_pool2d(d * valid, g)
     c = F.adaptive_avg_pool2d(valid, g)

@@ -8,6 +8,7 @@
 #SBATCH --chdir=/cluster/scratch/aleonel/spatial_jepa
 #SBATCH --output=logs/fetch_refs_%j.txt
 set -eo pipefail; set +u
+module load eth_proxy   # compute nodes reach the internet only via the ETH proxy
 source "$(conda info --base)/etc/profile.d/conda.sh"
 conda activate /cluster/scratch/aleonel/spatial_jepa/env
 export HF_HOME=/cluster/scratch/aleonel/spatial_jepa/hf_cache

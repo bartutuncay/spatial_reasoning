@@ -8,6 +8,7 @@
 #SBATCH --chdir=/cluster/scratch/aleonel/spatial_jepa
 #SBATCH --output=logs/provision_replica_%j.txt
 set -eo pipefail
+module load eth_proxy   # compute nodes reach the internet only via the ETH proxy
 DEST=datasets_replica
 DONE="$DEST/.provision_replica.done"
 [ -f "$DONE" ] && { echo "already provisioned"; exit 0; }
