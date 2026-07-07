@@ -1,7 +1,9 @@
 import numpy as np
 import torch
 
-from experiments.exp_anatomy.common import depth_grid, seed_split, to_uint8
+from experiments.exp_anatomy.common import (
+    depth_grid, relative_action, seed_split, split_seeds, to_uint8, walk_sequences,
+)
 
 
 def test_seed_split_last_seed_eval():
@@ -35,3 +37,29 @@ def test_to_uint8_handles_both_ranges():
     b = to_uint8(np.ones((4, 4, 3), dtype=np.float32) * 200.0)   # 0-255 range
     assert a.dtype == np.uint8 and 126 <= a[0, 0, 0] <= 129
     assert b.dtype == np.uint8 and b[0, 0, 0] == 200
+
+
+def test_walk_sequences_numeric_step_order(tmp_path):
+    d = tmp_path / "office" / "random_walks"
+    d.mkdir(parents=True)
+    for step in (0, 2, 10):                            # lexicographic puts 10 < 2
+        torch.save({"loc": [float(step), 0.0, 0.0]}, d / f"rw_0_{step}.pt")
+    seqs = walk_sequences(str(tmp_path), "office")
+    assert list(seqs.keys()) == [0]
+    steps = [int(f.split("_")[-1].split(".")[0]) for f in seqs[0]]
+    assert steps == [0, 2, 10]
+
+
+def test_split_seeds_holds_out_top():
+    seqs = {s: [f"rw_{s}_{i}.pt" for i in range(3)] for s in range(10)}
+    tr, ev = split_seeds(seqs, n_eval=3)
+    assert sorted(ev) == [7, 8, 9] and len(tr) == 7
+
+
+def test_relative_action_world_delta():
+    si = {"loc": [0.0, 0.0, 0.0], "view_dir": [1.0, 0.0, 0.0]}
+    sj = {"loc": [1.0, 2.0, 0.0], "view_dir": [0.0, 1.0, 0.0]}
+    a = relative_action(si, sj)
+    assert a.shape == (6,)
+    assert np.allclose(a[:3], [1.0, 2.0, 0.0])
+    assert np.allclose(a[3:], [-1.0, 1.0, 0.0])

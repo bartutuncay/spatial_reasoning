@@ -63,6 +63,69 @@ def encode_arm_latents(vae, files, dev, bs=16):
     return np.concatenate(Z), np.concatenate(L), np.concatenate(V)
 
 
+def load_walk(f):
+    return torch.load(f, map_location="cpu", weights_only=False)
+
+
+def _step_of(f):
+    return int(Path(f).name.rsplit("_", 1)[1].split(".")[0])
+
+
+def walk_sequences(root, scene):
+    """seed -> [files] ordered by step NUMERICALLY (sorted(glob) is lexicographic)."""
+    seqs = {}
+    for f in scene_files(root, scene):
+        seed = int(re.search(r"rw_(\d+)_", Path(f).name).group(1))
+        seqs.setdefault(seed, []).append(f)
+    return {s: sorted(fs, key=_step_of) for s, fs in seqs.items()}
+
+
+def split_seeds(seqs, n_eval=5):
+    """Hold out the highest n_eval seed keys for eval."""
+    ev_seeds = sorted(seqs)[-n_eval:]
+    tr = {s: v for s, v in seqs.items() if s not in ev_seeds}
+    ev = {s: v for s, v in seqs.items() if s in ev_seeds}
+    return tr, ev
+
+
+def relative_action(si, sj):
+    """[Δloc(3, world), Δview_dir(3, world)] from sample i -> j."""
+    li = np.asarray(si["loc"], dtype=np.float32).reshape(3)
+    lj = np.asarray(sj["loc"], dtype=np.float32).reshape(3)
+    vi = np.asarray(si["view_dir"], dtype=np.float32).reshape(3)
+    vj = np.asarray(sj["view_dir"], dtype=np.float32).reshape(3)
+    return np.concatenate([lj - li, vj - vi]).astype(np.float32)
+
+
+def pretrain_encoder(vae, autoenc, walk_dirs, objective, steps, dev):
+    """Dispatch: rgb_only -> augmentation-InfoNCE on img_enc only; else the
+    cross-modal four-arm pretrainer (fewshot._pretrain_pool)."""
+    if objective != "rgb_only":
+        from experiments.exp_jepa.fewshot import _pretrain_pool
+        return _pretrain_pool(vae, autoenc, walk_dirs, objective, steps, dev)
+    import torchvision.transforms as TT
+    from torch.utils.data import ConcatDataset, DataLoader
+    from experiments.exp_jepa.jepa import info_nce
+    ds = ConcatDataset([autoenc.RandomWalkAutoencoderDataset(str(d)) for d in walk_dirs])
+    loader = DataLoader(ds, batch_size=4, shuffle=True,
+                        collate_fn=autoenc.collate_random_walk_autoencoder)
+    aug = TT.Compose([TT.RandomResizedCrop((192, 256), scale=(0.6, 1.0), antialias=True),
+                      TT.RandomHorizontalFlip(),
+                      TT.ColorJitter(0.4, 0.4, 0.4, 0.1)])
+    opt = torch.optim.AdamW(vae.img_enc.parameters(), lr=1e-4)
+    it = iter(loader)
+    for _ in range(steps):
+        try:
+            b = next(it)
+        except StopIteration:
+            it = iter(loader); b = next(it)
+        img = b.img.permute(0, 3, 1, 2).float().to(dev) / 255.0
+        _, z1, _ = vae.img_enc(aug(img))
+        _, z2, _ = vae.img_enc(aug(img))
+        loss = info_nce(z1, z2)
+        opt.zero_grad(); loss.backward(); opt.step()
+
+
 def finish(out_dir, result, t0):
     """Stamp id/date/gpu_h, write result.json, print the one-line summary."""
     out = Path(out_dir); out.mkdir(parents=True, exist_ok=True)
