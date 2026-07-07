@@ -52,3 +52,79 @@ so memorization fails and a general representation can matter. Only then is the
 jepa-vs-scratch comparison and the graceful-degradation curve meaningful. One
 positive that already holds and survives scaling: **map-conditioning helps
 (no inversion)**, and **VICReg is empirically necessary** for a high-rank latent.
+
+---
+
+# Capability-Anatomy campaign — Wave 1 (2026-07-07)
+
+New paper direction (see `docs/superpowers/specs/2026-07-07-capability-anatomy-design.md`):
+**objective × modality × capability** matrix. Wave 1 = first two capability
+**columns** (C7 place recognition, C3 metric depth) across 5 trained-arm rows
+(2 seeds) + 4 frozen foundation-model reference rows on Bartu's 5 ETH3D scenes.
+28 jobs, 26 ok, 2 DEAD (both re-running after fixes). Frozen encoder + linear
+probe; auto-collected via `experiments/exp_anatomy/tally_wave1.py`.
+
+## C7 — place recognition (which of 5 scenes; acc, majority floor 0.20)
+| row | linear-probe acc | NN@1 retrieval |
+|---|---|---|
+| scratch (random enc) | 0.217 | **0.782** |
+| recon | 0.647 | 0.508 |
+| symalign | 0.555 | 0.420 |
+| contrastive | **0.675** | 0.698 |
+| jepa | 0.532 | 0.393 |
+| ref: DINOv2-S | **1.000** | 0.980 |
+| ref: DINOv2-B | 0.990 | 0.980 |
+| ref: SigLIP | 1.000 | 0.980 |
+| ref: Qwen2-VL-2B tower | 0.970 | 0.975 |
+
+- **A real dissociation, first row:** the **random** encoder is near-worst on the
+  *linear* probe (0.22) yet **best-of-the-trained on NN retrieval (0.78)** — its
+  features preserve appearance locality but aren't linearly separable. Training
+  (any objective) *flips* this: linear separability rises, raw appearance-NN falls.
+  Predict/abstract objectives (jepa, symalign) shed the most appearance (NN@1 0.39–0.42).
+- **Foundation models saturate this column** (~1.0 acc) — as designed, they anchor
+  the dynamic range the small from-scratch rows can't reach. Caveat: 5 very
+  different rooms may make place-rec too easy; more (and more similar) scenes needed to
+  make the trained-row spread meaningful.
+
+## C3 — metric depth (linear probe → 16×16 log-depth grid; AbsRel↓, train-mean floor 1.65)
+| row | AbsRel | δ<1.25 |
+|---|---|---|
+| scratch | 1.538 | 0.283 |
+| recon | 1.795 | 0.313 |
+| symalign | 1.698 | 0.299 |
+| contrastive | 1.946 | 0.281 |
+| jepa | 1.862 | 0.300 |
+| ref: DINOv2-B | **0.434** | **0.511** |
+| ref: DINOv2-S | 0.532 | 0.474 |
+| ref: Qwen2-VL-2B tower | 0.569 | 0.448 |
+
+- **Striking negative for the small rows:** *every* from-scratch 128-d embedding
+  sits at or **below** the train-mean floor on metric depth — including `recon`,
+  which was literally trained with a depth decoder. The cross-modal 128-d space
+  does **not** carry linearly-decodable metric depth.
+- **Foundation models carry ~3× more** (AbsRel 0.43–0.57 vs floor 1.65). The
+  column has dynamic range only because of the reference row.
+- Absolute AbsRel is poor even for refs (good depth is <0.1): a single global
+  vector → full-grid linear map is a deliberately weak probe; read the **ordering**
+  (refs ≫ trained ≈ floor), not the absolutes.
+
+## Reading so far (2 of 7 columns)
+The intended **double dissociation** is not yet visible because the trained rows
+cluster near the floor on both columns — the "dynamic-range mush" risk (spec §9.1)
+is real at this scale. What *is* already clean: (1) a **linear-vs-NN dissociation**
+within place-rec that separates appearance-preserving from appearance-shedding
+objectives; (2) foundation-model rows behaving exactly as designed anchors,
+saturating discriminative place-rec and dominating geometric depth. The verdict on
+whether *objective choice among the small rows* buys distinct capabilities waits on
+(a) the predictive/dynamical columns C4–C6 (where predict-objectives should win),
+and (b) more scenes / Replica scale to lift the trained rows off the floor.
+
+## Fixes made during Wave 1
+- **`effective_rank` SVD crash** (jepa row, `jepa.py:91`): cusolver `svdvals` throws
+  `_LinAlgError` on collapsed/ill-conditioned batches → CPU fallback, then rank=1.
+  Would have recurred on every jepa job; 19/19 tests pass, collapsed→1.0 verified.
+- **NaN/inf depth pixels** poisoned the depth grid → `nan_to_num` before masking (TDD).
+- **`eth_proxy`** required for any compute-node internet (both download jobs); GPU
+  probes forced `HF_HUB_OFFLINE=1`.
+- **Replica `download.sh` needs `pigz`** (absent on nodes) → env `pigz` on PATH.

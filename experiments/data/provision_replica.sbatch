@@ -7,8 +7,14 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --chdir=/cluster/scratch/aleonel/spatial_jepa
 #SBATCH --output=logs/provision_replica_%j.txt
-set -eo pipefail
+set -eo pipefail; set +u
 module load eth_proxy   # compute nodes reach the internet only via the ETH proxy
+# Replica's download.sh decompresses with pigz/unpigz, which is not on the node.
+# Put the conda env (which ships pigz) on PATH so unpigz resolves.
+source "$(conda info --base)/etc/profile.d/conda.sh"
+conda activate /cluster/scratch/aleonel/spatial_jepa/env
+command -v unpigz >/dev/null || conda install -y -p /cluster/scratch/aleonel/spatial_jepa/env pigz
+set -u
 DEST=datasets_replica
 DONE="$DEST/.provision_replica.done"
 [ -f "$DONE" ] && { echo "already provisioned"; exit 0; }

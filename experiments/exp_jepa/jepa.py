@@ -88,7 +88,17 @@ def effective_rank(z: torch.Tensor) -> float:
     ~1 means the batch collapsed to one direction; ~D means full spread.
     """
     z = z - z.mean(dim=0, keepdim=True)
-    s = torch.linalg.svdvals(z.float())
+    zf = z.float()
+    try:
+        s = torch.linalg.svdvals(zf)
+    except torch.linalg.LinAlgError:
+        # Ill-conditioned / collapsed batch: cusolver SVD can fail to converge.
+        # Fall back to CPU (more robust driver); this diagnostic must never
+        # crash the training job. A collapsed batch legitimately has rank ~1.
+        try:
+            s = torch.linalg.svdvals(zf.cpu())
+        except torch.linalg.LinAlgError:
+            return 1.0
     p = s / (s.sum() + 1e-12)
     entropy = -(p * torch.log(p + 1e-12)).sum()
     return float(torch.exp(entropy))
