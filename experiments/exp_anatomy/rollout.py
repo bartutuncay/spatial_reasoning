@@ -86,39 +86,67 @@ def run(args):
     if Ztr is None or Zev is None:
         raise RuntimeError(f"no rollout pairs at horizon {K}")
 
+    # Probe in a STANDARDIZED latent space (per-dim z-score from train stats):
+    # raw latents have a huge static/DC component and tiny frame-to-frame motion,
+    # so a raw-space delta-R^2 is dominated by a near-zero denominator and the head
+    # cannot fit the tiny target. Standardizing makes every dim O(1) and the motion
+    # signal well-conditioned; deltas below are all in standardized space.
+    mu = Ztr.mean(0); sd = Ztr.std(0) + 1e-6
+    amu = Atr.mean(0); asd = Atr.std(0) + 1e-6
+    Zs_tr = (Ztr - mu) / sd; Ys_tr = (Ytr - mu) / sd
+    Zs_ev = (Zev - mu) / sd; Ys_ev = (Yev - mu) / sd
+    As_tr = (Atr - amu) / asd; As_ev = (Aev - amu) / asd
+
+    # Predictor outputs the standardized DELTA z'_{t+k}-z'_t (residual prediction):
+    # an untrained head outputs ~0 -> R^2~0 (copy-last floor), so the metric is
+    # bounded and only genuine motion prediction from [z', action] earns positive R^2.
+    Dtr = (Ys_tr - Zs_tr).astype(np.float32)
     g = _mlp(dim + 6, 2 * dim, dim).to(dev)
     opt = torch.optim.AdamW(g.parameters(), lr=1e-3)
-    X = torch.as_tensor(np.concatenate([Ztr, Atr], 1), dtype=torch.float32, device=dev)
-    Tt = torch.as_tensor(Ytr, dtype=torch.float32, device=dev)
+    X = torch.as_tensor(np.concatenate([Zs_tr, As_tr], 1), dtype=torch.float32, device=dev)
+    Tt = torch.as_tensor(Dtr, dtype=torch.float32, device=dev)
     for _ in range(args.head_steps):
         perm = torch.randperm(len(X), device=dev)[:256]
         loss = F.mse_loss(g(X[perm]), Tt[perm])
         opt.zero_grad(); loss.backward(); opt.step()
 
-    def cosd(a, b):
-        a = F.normalize(torch.as_tensor(a, dtype=torch.float32), dim=1)
-        b = F.normalize(torch.as_tensor(b, dtype=torch.float32), dim=1)
-        return float((1 - (a * b).sum(1)).mean())
+    # Score the RESIDUAL (delta), not the absolute latent: consecutive frames are
+    # near-identical so a DC-dominated absolute-cosine makes copy-last unbeatable.
+    # delta-R^2 = 1 - ||pred_delta - true_delta||^2 / ||true_delta||^2; copy-last
+    # (pred=z_t -> pred_delta=0) gives R^2=0 by construction, so any positive R^2
+    # means the model predicts the motion from [z_t, action].
+    def delta_r2(pred_delta, true_delta):
+        ss_res = float(((pred_delta - true_delta) ** 2).sum())
+        ss_tot = float((true_delta ** 2).sum()) + 1e-8
+        return 1.0 - ss_res / ss_tot
 
+    def delta_cos(pred_delta, true_delta):
+        pd = F.normalize(torch.as_tensor(pred_delta, dtype=torch.float32), dim=1)
+        td = F.normalize(torch.as_tensor(true_delta, dtype=torch.float32), dim=1)
+        return float((pd * td).sum(1).mean())
+
+    true_delta = (Ys_ev - Zs_ev).astype(np.float32)
     with torch.no_grad():
-        Xe = torch.as_tensor(np.concatenate([Zev, Aev], 1), dtype=torch.float32, device=dev)
-        pred = g(Xe).cpu().numpy()
-        Ash = Aev[np.random.permutation(len(Aev))]
-        Xsh = torch.as_tensor(np.concatenate([Zev, Ash], 1), dtype=torch.float32, device=dev)
+        Xe = torch.as_tensor(np.concatenate([Zs_ev, As_ev], 1), dtype=torch.float32, device=dev)
+        pred = g(Xe).cpu().numpy()          # predicted standardized DELTA
+        Ash = As_ev[np.random.permutation(len(As_ev))]
+        Xsh = torch.as_tensor(np.concatenate([Zs_ev, Ash], 1), dtype=torch.float32, device=dev)
         pred_sh = g(Xsh).cpu().numpy()
-    err = cosd(pred, Yev)               # model prediction
-    floor = cosd(Zev, Yev)              # copy-last (predict current frame)
-    shuf = cosd(pred_sh, Yev)           # shuffled-action control
+    r2 = delta_r2(pred, true_delta)         # model (copy-last floor = 0 by construction)
+    r2_shuf = delta_r2(pred_sh, true_delta)  # shuffled-action control
+    dcos = delta_cos(pred, true_delta)      # direction of predicted motion
     row = args.objective if not args.features_dir else f"ref:{Path(args.features_dir).name}"
     return {"status": "ok",
-            "verdict": "EXISTS" if err < floor - 0.005 else "WEAK",
-            "channel": f"rollout:{row}", "primary": round(err, 5),
-            "metrics": {"cosdist": err, "copylast_floor": floor,
-                        "shuffled_action": shuf, "action_gap": shuf - err,
-                        "horizon": K, "n_train": int(len(Ztr)), "n_eval": int(len(Zev)),
-                        "dim": dim, "row": row, "seed": args.seed, "tier": args.tier},
-            "notes": f"rollout {row} k={K}: cosd {err:.4f} (copy-last {floor:.4f}, "
-                     f"shuffled {shuf:.4f}, action-gap {shuf - err:+.4f})"}
+            "verdict": "EXISTS" if r2 > 0.02 else "WEAK",
+            "channel": f"rollout:{row}", "primary": round(r2, 4),
+            "metrics": {"delta_r2": r2, "copylast_floor_r2": 0.0,
+                        "shuffled_action_r2": r2_shuf, "action_gap": r2 - r2_shuf,
+                        "delta_cos": dcos, "horizon": K, "n_train": int(len(Ztr)),
+                        "n_eval": int(len(Zev)), "dim": dim, "row": row,
+                        "seed": args.seed, "tier": args.tier},
+            "notes": f"rollout {row} k={K}: delta-R2 {r2:.3f} (floor 0), "
+                     f"shuffled-R2 {r2_shuf:.3f}, action-gap {r2 - r2_shuf:+.3f}, "
+                     f"delta-cos {dcos:.3f}"}
 
 
 def main():
