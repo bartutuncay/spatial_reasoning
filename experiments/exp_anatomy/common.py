@@ -80,6 +80,17 @@ def walk_sequences(root, scene):
     return {s: sorted(fs, key=_step_of) for s, fs in seqs.items()}
 
 
+def branch_sequences(root, scene):
+    """(anchor, branch) -> [files] ordered by step numerically, from
+    <root>/<scene>/branch_walks/bw_<anchor>_<branch>_<step>.pt."""
+    seqs = {}
+    for f in sorted(glob.glob(str(Path(root) / scene / "branch_walks" / "*.pt"))):
+        m = re.match(r"bw_(\d+)_(\d+)_(\d+)\.pt$", Path(f).name)
+        if m:
+            seqs.setdefault((int(m.group(1)), int(m.group(2))), []).append(f)
+    return {k: sorted(fs, key=_step_of) for k, fs in seqs.items()}
+
+
 def split_seeds(seqs, n_eval=5):
     """Hold out the highest n_eval seed keys for eval."""
     ev_seeds = sorted(seqs)[-n_eval:]

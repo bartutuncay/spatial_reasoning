@@ -56,6 +56,20 @@ def test_split_seeds_holds_out_top():
     assert sorted(ev) == [7, 8, 9] and len(tr) == 7
 
 
+def test_branch_sequences_grouping(tmp_path):
+    from experiments.exp_anatomy.common import branch_sequences
+    d = tmp_path / "office" / "branch_walks"
+    d.mkdir(parents=True)
+    for a in (0, 1):
+        for b in (0, 2):
+            for s in (0, 10, 2):                      # lexicographic trap again
+                torch.save({"loc": [0.0, 0.0, 0.0]}, d / f"bw_{a}_{b}_{s}.pt")
+    seqs = branch_sequences(str(tmp_path), "office")
+    assert set(seqs) == {(0, 0), (0, 2), (1, 0), (1, 2)}
+    steps = [int(f.rsplit("_", 1)[1].split(".")[0]) for f in seqs[(0, 0)]]
+    assert steps == [0, 2, 10]
+
+
 def test_fuse_lambda_parser():
     from experiments.exp_anatomy.common import fuse_lambda
     assert fuse_lambda("fuse_cj_25") == 0.25
