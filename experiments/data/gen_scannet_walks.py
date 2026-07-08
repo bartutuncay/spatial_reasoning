@@ -121,6 +121,7 @@ def main():
     ap.add_argument("--seeds", type=int, default=26)
     ap.add_argument("--steps", type=int, default=40)
     ap.add_argument("--step-len", type=float, default=0.12)
+    ap.add_argument("--n-points", type=int, default=1_500_000)   # dense surface sampling
     args = ap.parse_args()
 
     sc = args.scene
@@ -129,10 +130,20 @@ def main():
     out_dir = Path(args.out_root) / sc / "random_walks"
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    mesh = o3d.io.read_point_cloud(str(ply))
-    pts = np.asarray(mesh.points)
-    cols = np.asarray(mesh.colors)
-    if len(cols) != len(pts):                                 # some meshes lack colors
+    # _vh_clean_2.ply is a TRIANGLE MESH (~80k verts). Splatting only the vertices
+    # leaves renders ~14% filled (vs ETH3D ~99%); densely sample the SURFACE so the
+    # raycaster fills the image like ETH3D's dense scans.
+    tm = o3d.io.read_triangle_mesh(str(ply))
+    if len(tm.triangles) > 0:
+        if not tm.has_vertex_colors():
+            tm.paint_uniform_color([0.5, 0.5, 0.5])
+        pcd = tm.sample_points_uniformly(number_of_points=args.n_points)
+        pts = np.asarray(pcd.points)
+        cols = np.asarray(pcd.colors)
+    else:                                                     # no faces -> vertices
+        pc = o3d.io.read_point_cloud(str(ply))
+        pts = np.asarray(pc.points); cols = np.asarray(pc.colors)
+    if len(cols) != len(pts):
         cols = np.full((len(pts), 3), 0.5, dtype=np.float32)
     A = load_axis_alignment(sroot / f"{sc}.txt")
     pts = (A[:3, :3] @ pts.T).T + A[:3, 3]                     # gravity-align (z up)
