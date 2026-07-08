@@ -7,12 +7,19 @@
 set -euo pipefail
 cd /cluster/scratch/aleonel/spatial_jepa
 PHASE="${1:?phase: efficient|pairs}"
+POOL="${2:-gpuhe}"          # gpuhe = 4090/ls_helbi ; gpupr = a100/es_dgess
 TRAINED="scratch recon symalign contrastive jepa rgb_only fuse_cj_25 fuse_cj_50 fuse_cj_75"
 REFS="dinov2s dinov2b siglip qwen2vl"
 SEEDS="0 1 2"
 
+if [ "$POOL" = "gpupr" ]; then
+  POOLARGS="--partition=gpupr.4h --account=es_dgess --gpus=nvidia_a100_80gb_pcie:1"
+else
+  POOLARGS="--partition=gpuhe.4h --account=ls_helbi --gpus=nvidia_geforce_rtx_4090:1"
+fi
+
 sub() {  # sub <jobname> <MODULE> "<ARGS>"
-  sbatch --time=03:55:00 --job-name "$1" \
+  sbatch $POOLARGS --time=03:55:00 --job-name "$1" \
     --export=ALL,MODULE=$2,ID=$1,RESDIR=anatomy_bulk,ARGS="$3" \
     experiments/exp_anatomy/probe.sbatch >/dev/null
 }
