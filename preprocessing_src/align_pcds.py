@@ -61,7 +61,12 @@ def combine_aligned_pointclouds(mlp_path: str | Path, ply_dir: str | Path, out_p
         raise RuntimeError(f"Failed to write: {out_path}")
     print(f"Wrote combined point cloud: {out_path} (N={np.asarray(combined.points).shape[0]})")
 
-location = os.environ.get('SJEPA_SCENE', 'relief/relief')  # '<projectfolder>/<eth3dscene>'
+location = os.environ.get('SJEPA_SCENE')  # '<projectfolder>/<eth3dscene>'
+if not location:
+    raise SystemExit(
+        "SJEPA_SCENE is not set. Export it as '<projectfolder>/<eth3dscene>' "
+        "(e.g. SJEPA_SCENE=office/office) before running align_pcds.py — "
+        "there is no default scene, to avoid silently aligning the wrong one.")
 
 
 if __name__ == "__main__":
