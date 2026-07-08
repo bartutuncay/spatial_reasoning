@@ -51,16 +51,19 @@ def run(args):
     dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     root = Path(args.processed_root)
 
+    # Per-scene train/eval file splits (computed once).
+    scene_split = {sc: _scene_split_files(root, sc, rng) for sc in SCENES}
+
+    # Per-file caches: zc[f] latent, locc[f], vdc[f]. One load per file, batched
+    # encode — targets() must NOT load_walk per pair (bulk = 20k pairs = 40k loads).
+    zc, locc, vdc = {}, {}, {}
     if args.features_dir:
-        feat, loc = {}, {}
         for sc in SCENES:
             d = load_walk(Path(args.features_dir) / f"{sc}.pt")
-            for f, z, l in zip(d["files"], np.asarray(d["features"]), np.asarray(d["loc"])):
-                feat[f] = z; loc[f] = l
-        dim = int(next(iter(feat.values())).shape[0])
-
-        def encode(f):
-            return feat[f]
+            for f, z, l, v in zip(d["files"], np.asarray(d["features"]),
+                                  np.asarray(d["loc"]), np.asarray(d["view_dir"])):
+                zc[f] = z; locc[f] = l; vdc[f] = v
+        dim = int(next(iter(zc.values())).shape[0])
     else:
         autoenc = _load_module("sjepa_autoenc", ROOT / "training_scripts" / "1_autoencoder.py")
         vae = autoenc.ImageGraphVAE(args.latent_dim).to(dev).train()
@@ -69,27 +72,29 @@ def run(args):
                              args.objective, PRETRAIN_STEPS.get(args.tier, 200), dev)
         vae.img_enc.eval()
         dim = args.latent_dim
-        _cache = {}
-
-        def encode(f):
-            if f not in _cache:
-                s = load_walk(f)
-                img = torch.as_tensor(np.asarray(s["img"]), dtype=torch.float32
-                                      ).permute(2, 0, 1)[None].to(dev)
-                with torch.no_grad():
-                    _, mu, _ = vae.img_enc(img)
-                _cache[f] = mu[0].cpu().numpy()
-            return _cache[f]
+        need = sorted({f for tr, ev in scene_split.values() for f in tr + ev})
+        BS = 16
+        for i in range(0, len(need), BS):
+            chunk = need[i:i + BS]
+            imgs, samples = [], []
+            for f in chunk:
+                s = load_walk(f); samples.append(s)
+                imgs.append(torch.as_tensor(np.asarray(s["img"]), dtype=torch.float32).permute(2, 0, 1))
+            with torch.no_grad():
+                _, mu, _ = vae.img_enc(torch.stack(imgs).to(dev))
+            mu = mu.cpu().numpy()
+            for j, f in enumerate(chunk):
+                zc[f] = mu[j]
+                locc[f] = np.asarray(samples[j]["loc"], np.float32).reshape(3)
+                vdc[f] = np.asarray(samples[j]["view_dir"], np.float32).reshape(3)
+        print(f"encoded {len(need)} frames", flush=True)
 
     n_pairs = {"pilot": 200, "shakedown": 4000, "bulk": 20000}.get(args.tier, 4000)
     n_ev = max(50, n_pairs // 3)
 
     def targets(fi, fj):
-        si, sj = load_walk(fi), load_walk(fj)
-        li = np.asarray(si["loc"], dtype=np.float32).reshape(3)
-        lj = np.asarray(sj["loc"], dtype=np.float32).reshape(3)
-        vi = np.asarray(si["view_dir"], dtype=np.float32).reshape(3)
-        vj = np.asarray(sj["view_dir"], dtype=np.float32).reshape(3)
+        li, lj = locc[fi], locc[fj]
+        vi, vj = vdc[fi], vdc[fj]
         d = lj - li
         dist = float(np.linalg.norm(d))
         direction = d / (dist + 1e-8)
@@ -100,11 +105,11 @@ def run(args):
         Z, DIST, DIR, HEAD = [], [], [], []
         per_scene = (n_pairs if split == "tr" else n_ev) // len(SCENES) + 1
         for sc in SCENES:
-            tr_f, ev_f = _scene_split_files(root, sc, rng)
+            tr_f, ev_f = scene_split[sc]
             files = tr_f if split == "tr" else ev_f
             for fi, fj in _sample_pairs(files, per_scene, rng):
                 dist, direction, heading = targets(fi, fj)
-                Z.append(np.concatenate([encode(fi), encode(fj)]))
+                Z.append(np.concatenate([zc[fi], zc[fj]]))
                 DIST.append(dist); DIR.append(direction); HEAD.append(heading)
         return (np.stack(Z), np.asarray(DIST, np.float32),
                 np.stack(DIR), np.asarray(HEAD, np.float32))
