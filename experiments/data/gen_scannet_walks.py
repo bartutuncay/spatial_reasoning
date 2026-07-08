@@ -18,6 +18,7 @@ import open3d as o3d
 import torch
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT))                                  # repo root for experiments.*
 sys.path.insert(0, str(ROOT / "agent_src" / "rw_small_step"))
 from pcd_slice_methods import rotation_a_to_b  # noqa: E402
 from experiments.data.gen_branch_walks import (  # noqa: E402
