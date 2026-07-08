@@ -21,6 +21,7 @@ COLS = {
     "placerec":   ("top1_acc", "majority_floor", "nn_recall1"),
     "depthprobe": ("absrel", "floor_absrel", "delta125"),
     "rollout":    ("delta_r2", "copylast_floor_r2", "action_gap"),
+    "rollout_act": ("delta_r2", "copylast_floor_r2", "action_gap"),  # branching walks
     "navdist":    ("r2", None, "mae_m"),
     "relpose":    ("dir_cos", "floor_dir_cos", "heading_mae"),
 }

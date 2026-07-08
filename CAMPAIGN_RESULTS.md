@@ -251,3 +251,62 @@ with single-pass batched frame caching (11.7 min vs 50-min wall). Re-run then hi
 a CUDA illegal-memory-access on the batch-32 encode; dropped to the proven batch-16.
 Re-piloting. **The action-gap verdict — whether rollout is genuinely
 action-conditioned or just temporal predictability — is still pending this battery.**
+
+---
+
+# Wave-4 BULK matrix + action-gap verdict (2026-07-08)
+
+Full matrix re-run at **bulk tier (1500-step pretrain) × 3 seeds**, 5 ETH3D scenes,
+across two GPU pools (4090/gpuhe + a100/gpupr). ~185 jobs, 177 ok. This is the
+credibility run; it SHARPENED the dissociation vs shakedown.
+
+| row | placerec↑ | depth↓ | rollout↑ | navdist↑ | relpose↑ |
+|---|---|---|---|---|---|
+| scratch | 0.217 | 1.061 | 0.196 | 0.118 | 0.010 |
+| rgb_only | 0.503 | 1.242 | −0.057 | 0.125 | 0.105 |
+| recon | 0.748 | **0.872** | 0.142 | 0.489 | 0.252 |
+| symalign | 0.532 | 0.875 | 0.205 | 0.374 | 0.133 |
+| **contrastive** | **0.852** | 0.879 | **−0.093** | **0.540** | **0.295** |
+| **jepa** | 0.522 | **1.385** | **0.355** | 0.371 | 0.113 |
+| fuse_cj_25 | 0.787 | 1.138 | 0.312 | 0.369 | 0.131 |
+| fuse_cj_50 | 0.758 | 1.133 | 0.290 | 0.402 | 0.142 |
+| fuse_cj_75 | 0.792 | 1.120 | 0.275 | 0.421 | 0.116 |
+| ref: DINOv2-B | 0.990 | 0.411 | 0.040 | 0.726 | 0.464 |
+| ref: (S/SigLIP/Qwen) | 0.98–1.0 | 0.41–0.51 | 0.05–0.11 | 0.48–0.74 | 0.35–0.52 |
+
+**Double dissociation — robust, sharpened at bulk:**
+- `contrastive` wins **4 of 5** trained-row columns (placerec 0.852, depth ~0.88,
+  navdist 0.540, relpose 0.295) but is **dead last on rollout (−0.093)**.
+- `jepa` wins **rollout alone (0.355)** and is worst on depth (1.385) — predictive
+  abstraction costs metric-depth readout most.
+- The clean axis: **discriminative-relational** (placerec + navdist + relpose, all
+  contrastive-favoring — relating/IDing views is discrimination) vs **predictive**
+  (rollout, jepa-favoring). "Spatial" is (at least) two capabilities, not one.
+- **Fusion frontier holds at bulk & 3 seeds:** placerec rises with λ (0.52→0.85),
+  rollout stays positive across the whole fusion band (0.31→0.28) and only collapses
+  at pure contrastive (−0.09). Asymmetric: a little JEPA rescues rollout cheaply.
+
+## Action-gap verdict — "world-model" language NOT earned
+Action-conditioned rollout on branching walks (same anchor, 3 divergent actions →
+future is action-determined by construction):
+
+| row | delta-R² | **action-gap** (shuffled − model) |
+|---|---|---|
+| jepa | 0.209 | **+0.000** |
+| symalign | 0.176 | −0.000 |
+| recon | 0.160 | +0.002 |
+| contrastive | −0.309 | +0.021 |
+| fuse_cj_25/50/75 | 0.16–0.20 | +0.000 |
+
+**Even when the future is action-determined, shuffling the action does not degrade
+prediction (gap ≈ 0 for every trained row).** So the rollout advantage is *temporal
+latent predictability* (jepa's latent is autoregressively smooth — delta-cos 0.51),
+NOT action-conditioned dynamics. The paper describes this column as "predict-in-
+latent temporal structure," and does **not** claim a world model. (Honesty rule from
+the strengthening spec, resolved against the strong claim.)
+
+## Notes
+- Predictive rows (jepa/symalign) also win rollout on branching walks; contrastive is
+  negative there too — the dissociation is consistent across smooth & branching walks.
+- A few jepa seeds DEAD on the pre-existing PCD "2 origin nodes" flake (jepa rollout
+  n=1 on branching); rerun pending, won't move the qualitative story.
