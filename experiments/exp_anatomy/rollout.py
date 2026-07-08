@@ -28,6 +28,12 @@ def run(args):
     dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     root = Path(args.processed_root)
 
+    # Per-file caches populated in ONE pass (see below): z latent, loc, view_dir.
+    # Loading each file once (not per-pair) and batching the encode is essential —
+    # branch-walk .pt files carry large scene graphs, so per-pair load_walk is the
+    # dominant cost and blew the walltime.
+    zc, locc, vdc = {}, {}, {}
+    vae = None
     if args.features_dir:
         feat = {}
         for sc in SCENES:
@@ -35,14 +41,12 @@ def run(args):
             if not p.exists():
                 continue                      # e.g. hospital has no branch walks
             d = load_walk(p)
-            for f, z in zip(d["files"], np.asarray(d["features"])):
-                feat[f] = z
-        if not feat:
+            for f, z, l, v in zip(d["files"], np.asarray(d["features"]),
+                                  np.asarray(d["loc"]), np.asarray(d["view_dir"])):
+                zc[f] = z; locc[f] = l; vdc[f] = v
+        if not zc:
             raise FileNotFoundError(f"no feature files under {args.features_dir}")
-        dim = int(next(iter(feat.values())).shape[0])
-
-        def encode(f):
-            return feat[f]
+        dim = int(next(iter(zc.values())).shape[0])
     else:
         autoenc = _load_module("sjepa_autoenc", ROOT / "training_scripts" / "1_autoencoder.py")
         vae = autoenc.ImageGraphVAE(args.latent_dim).to(dev).train()
@@ -51,17 +55,7 @@ def run(args):
                              args.objective, PRETRAIN_STEPS.get(args.tier, 200), dev)
         vae.img_enc.eval()
         dim = args.latent_dim
-        _cache = {}
-
-        def encode(f):
-            if f not in _cache:
-                s = load_walk(f)
-                img = torch.as_tensor(np.asarray(s["img"]), dtype=torch.float32
-                                      ).permute(2, 0, 1)[None].to(dev)
-                with torch.no_grad():
-                    _, mu, _ = vae.img_enc(img)
-                _cache[f] = mu[0].cpu().numpy()
-            return _cache[f]
+        print("pretrain done, building trajectories", flush=True)
 
     # collect trajectories across scenes.
     #   smooth   : Bartu's random walks, split by walk seed.
@@ -95,13 +89,39 @@ def run(args):
 
     K = args.horizon
 
+    # ONE pass over every unique file: cache latent + loc + view_dir, batch the
+    # encode. For ref rows the caches are already populated from the feature files.
+    if vae is not None:
+        need = sorted({f for fs in list(tr_seqs.values()) + list(ev_seqs.values()) for f in fs})
+        BS = 32
+        for i in range(0, len(need), BS):
+            chunk = need[i:i + BS]
+            imgs, samples = [], []
+            for f in chunk:
+                s = load_walk(f)
+                samples.append(s)
+                imgs.append(torch.as_tensor(np.asarray(s["img"]), dtype=torch.float32).permute(2, 0, 1))
+            batch = torch.stack(imgs).to(dev)
+            with torch.no_grad():
+                _, mu, _ = vae.img_enc(batch)
+            mu = mu.cpu().numpy()
+            for j, f in enumerate(chunk):
+                zc[f] = mu[j]
+                locc[f] = np.asarray(samples[j]["loc"], np.float32).reshape(3)
+                vdc[f] = np.asarray(samples[j]["view_dir"], np.float32).reshape(3)
+        print(f"encoded {len(need)} frames", flush=True)
+
+    def _action(fi, fj):
+        return np.concatenate([locc[fj] - locc[fi], vdc[fj] - vdc[fi]]).astype(np.float32)
+
     def build(seqs):
         Z, A, Y = [], [], []
         for fs in seqs.values():
             for t in range(len(fs) - K):
-                si, sj = load_walk(fs[t]), load_walk(fs[t + K])
-                Z.append(encode(fs[t])); Y.append(encode(fs[t + K]))
-                A.append(relative_action(si, sj))
+                if fs[t] not in zc or fs[t + K] not in zc:
+                    continue
+                Z.append(zc[fs[t]]); Y.append(zc[fs[t + K]])
+                A.append(_action(fs[t], fs[t + K]))
         if not Z:
             return None, None, None
         return np.stack(Z), np.stack(A), np.stack(Y)
