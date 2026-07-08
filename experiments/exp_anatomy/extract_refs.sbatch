@@ -17,4 +17,5 @@ export HF_HUB_OFFLINE=1   # extraction uses the prefetched cache only
 LIM=""
 [ -n "${LIMIT}" ] && LIM="--limit ${LIMIT}"
 python -m experiments.exp_anatomy.extract_refs --model "${MODEL}" \
-  --processed-root "${SJEPA_PROCESSED_ROOT}" ${LIM}
+  --processed-root "${SJEPA_PROCESSED_ROOT}" \
+  --out-root "${OUTROOT:-results/anatomy_refs}" ${LIM}

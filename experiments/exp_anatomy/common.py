@@ -1,6 +1,7 @@
 """Shared utilities for capability-anatomy probes (wave 1)."""
 import glob
 import json
+import os
 import re
 import sys
 import time
@@ -16,7 +17,11 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 from experiments.exp_jepa.locate import _QueryDS  # noqa: E402
 
-SCENES = ["office", "pipes", "break_room", "relief", "hospital"]
+# Scene set is configurable so the same probes run on ETH3D (default) or a
+# ScanNet generality set — SJEPA_SCENES="scene0000_00,scene0001_00,..." +
+# SJEPA_PROCESSED_ROOT=datasets_scannet/walks.
+SCENES = os.environ.get(
+    "SJEPA_SCENES", "office,pipes,break_room,relief,hospital").split(",")
 
 
 def seed_split(files):
