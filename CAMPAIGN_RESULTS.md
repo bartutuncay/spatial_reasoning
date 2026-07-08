@@ -134,3 +134,30 @@ and (b) more scenes / Replica scale to lift the trained rows off the floor.
   Replica v1 (18 scenes) now fully extracted on scratch.
 - **SigLIP depth CUDA device-side assert** (1 cell): identical re-run passed
   (AbsRel 0.499) → confirmed transient node fault, not a code path.
+
+---
+
+# Wave-3 A1 — the fusion frontier (2026-07-08)
+
+Fused objective `fuse_cj_<λ>` = λ·InfoNCE(μ_i, μ_p) + (1−λ)·JEPA(μ_i→EMA(PCDEnc)),
+λ = contrastive weight ∈ {0.25, 0.5, 0.75}. 2 seeds, shakedown tier, 5 ETH3D scenes.
+Placed between the measured antipodes (jepa=λ0, contrastive=λ1):
+
+| row (λ=contrastive wt) | place-rec acc ↑ | rollout ΔR² ↑ |
+|---|---|---|
+| jepa (λ=0) | 0.532 | **0.337** |
+| fuse_cj_25 | 0.585 | 0.310 |
+| fuse_cj_50 | 0.625 | 0.302 |
+| fuse_cj_75 | 0.643 | 0.270 |
+| contrastive (λ=1) | **0.675** | −0.036 |
+
+- **Both axes monotone in λ** — the fusion smoothly interpolates the dissociation.
+- **Trade-off is asymmetric (the finding):** place-rec climbs the full range (0.53→0.68)
+  while rollout barely erodes across the fusion band (0.34→0.27) and **only collapses at
+  pure contrastive** (−0.04). `fuse_cj_75` retains ~95% of contrastive's place-rec AND ~80%
+  of jepa's rollout — a small predictive term rescues rollout at almost no discriminative cost.
+  The dissociation is real but the frontier is *not* a straight Pareto line; it bends.
+- navdist/relpose along the frontier: navdist rises with λ (0.185→0.239), relpose flat
+  (~0.13) — consistent with those columns patterning discriminative (contrastive-favoring).
+- Depth column being re-run under a scale-invariant (z-scored input) probe protocol; numbers
+  folded in once that sub-battery drains (fixes the earlier rgb_only inf at its root).
