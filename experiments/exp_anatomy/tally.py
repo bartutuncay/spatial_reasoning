@@ -26,9 +26,11 @@ COLS = {
 }
 
 
-def load():
+def load(results_dir="results/anatomy"):
     out = []
-    for f in sorted(glob.glob("results/anatomy/an_*/result.json")):
+    for f in sorted(glob.glob(f"{results_dir}/*/result.json")):
+        if "/pil_" in f:                 # skip pilot runs (contaminate aggregation)
+            continue
         try:
             out.append(json.load(open(f)))
         except Exception:
@@ -41,8 +43,10 @@ def rank(row):
 
 
 def main():
-    rows = load()
-    print(f"# Anatomy capability matrix: {len(rows)} result files\n")
+    import sys
+    results_dir = sys.argv[1] if len(sys.argv) > 1 else "results/anatomy"
+    rows = load(results_dir)
+    print(f"# Anatomy capability matrix ({results_dir}): {len(rows)} result files\n")
 
     dead = [d for d in rows if d.get("status") != "ok"]
     if dead:
