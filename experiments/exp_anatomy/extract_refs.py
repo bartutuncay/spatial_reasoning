@@ -53,6 +53,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--model", required=True, choices=list(HF))
     ap.add_argument("--processed-root", default="data_bartu")
+    ap.add_argument("--walks-subdir", default="random_walks")   # branch_walks for A2
     ap.add_argument("--out-root", default="results/anatomy_refs")
     ap.add_argument("--limit", type=int, default=0)   # pilot: cap files/scene
     ap.add_argument("--bs", type=int, default=16)
@@ -62,11 +63,13 @@ def main():
     out_dir = Path(args.out_root) / args.model
     out_dir.mkdir(parents=True, exist_ok=True)
     for sc in SCENES:
-        files = scene_files(args.processed_root, sc)
+        files = scene_files(args.processed_root, sc, subdir=args.walks_subdir)
         if args.limit:
             files = files[:args.limit]
         if not files:
-            raise FileNotFoundError(f"no walks for scene {sc} under {args.processed_root}")
+            print(f"{args.model}/{sc}: no walks under {args.processed_root} "
+                  f"({args.walks_subdir}), skipped", flush=True)
+            continue
         F_, L, V = [], [], []
         for i in range(0, len(files), args.bs):
             chunk = files[i:i + args.bs]

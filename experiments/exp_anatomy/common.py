@@ -28,8 +28,8 @@ def seed_split(files):
     return tr, ev
 
 
-def scene_files(root, scene):
-    return sorted(glob.glob(str(Path(root) / scene / "random_walks" / "*.pt")))
+def scene_files(root, scene, subdir="random_walks"):
+    return sorted(glob.glob(str(Path(root) / scene / subdir / "*.pt")))
 
 
 def depth_grid(depth, g=16):

@@ -31,9 +31,14 @@ def run(args):
     if args.features_dir:
         feat = {}
         for sc in SCENES:
-            d = load_walk(Path(args.features_dir) / f"{sc}.pt")
+            p = Path(args.features_dir) / f"{sc}.pt"
+            if not p.exists():
+                continue                      # e.g. hospital has no branch walks
+            d = load_walk(p)
             for f, z in zip(d["files"], np.asarray(d["features"])):
                 feat[f] = z
+        if not feat:
+            raise FileNotFoundError(f"no feature files under {args.features_dir}")
         dim = int(next(iter(feat.values())).shape[0])
 
         def encode(f):
@@ -58,13 +63,33 @@ def run(args):
                 _cache[f] = mu[0].cpu().numpy()
             return _cache[f]
 
-    # collect all walks across scenes, split by (global) seed index
+    # collect trajectories across scenes.
+    #   smooth   : Bartu's random walks, split by walk seed.
+    #   branching: same-anchor multi-action walks (gen_branch_walks); split by
+    #              ANCHOR so all branches of an anchor stay in one split — the
+    #              eval set then contains same-state different-action futures,
+    #              which is what makes the action-gap meaningful.
     all_seqs = {}
-    for sc in SCENES:
-        for seed, fs in walk_sequences(root, sc).items():
-            all_seqs[f"{sc}:{seed}"] = fs
-    idx_seqs = {i: v for i, v in enumerate(all_seqs.values())}
-    tr_seqs, ev_seqs = split_seeds(idx_seqs, n_eval=max(2, len(idx_seqs) // 6))
+    if args.walks == "branching":
+        from experiments.exp_anatomy.common import branch_sequences
+        wroot = Path(args.walks_root)
+        scenes_present = [sc for sc in SCENES if branch_sequences(wroot, sc)]
+        if not scenes_present:
+            raise FileNotFoundError(f"no branch walks under {wroot}")
+        for sc in scenes_present:
+            for (anchor, branch), fs in branch_sequences(wroot, sc).items():
+                all_seqs[(sc, anchor, branch)] = fs
+        anchors = sorted({(sc, a) for (sc, a, _) in all_seqs})
+        n_ev = max(2, len(anchors) // 5)
+        ev_anchors = set(anchors[-n_ev:])
+        tr_seqs = {k: v for k, v in all_seqs.items() if (k[0], k[1]) not in ev_anchors}
+        ev_seqs = {k: v for k, v in all_seqs.items() if (k[0], k[1]) in ev_anchors}
+    else:
+        for sc in SCENES:
+            for seed, fs in walk_sequences(root, sc).items():
+                all_seqs[f"{sc}:{seed}"] = fs
+        idx_seqs = {i: v for i, v in enumerate(all_seqs.values())}
+        tr_seqs, ev_seqs = split_seeds(idx_seqs, n_eval=max(2, len(idx_seqs) // 6))
     if args.tier == "pilot":
         tr_seqs = dict(list(tr_seqs.items())[:3]); ev_seqs = dict(list(ev_seqs.items())[:2])
 
@@ -136,9 +161,10 @@ def run(args):
     r2_shuf = delta_r2(pred_sh, true_delta)  # shuffled-action control
     dcos = delta_cos(pred, true_delta)      # direction of predicted motion
     row = args.objective if not args.features_dir else f"ref:{Path(args.features_dir).name}"
+    chan = "rollout_act" if args.walks == "branching" else "rollout"
     return {"status": "ok",
             "verdict": "EXISTS" if r2 > 0.02 else "WEAK",
-            "channel": f"rollout:{row}", "primary": round(r2, 4),
+            "channel": f"{chan}:{row}", "primary": round(r2, 4),
             "metrics": {"delta_r2": r2, "copylast_floor_r2": 0.0,
                         "shuffled_action_r2": r2_shuf, "action_gap": r2 - r2_shuf,
                         "delta_cos": dcos, "horizon": K, "n_train": int(len(Ztr)),
@@ -155,6 +181,8 @@ def main():
                     choices=["scratch", "jepa", "symalign", "contrastive", "recon", "rgb_only",
                              "fuse_cj_25", "fuse_cj_50", "fuse_cj_75"])
     ap.add_argument("--features-dir", default=None)
+    ap.add_argument("--walks", default="smooth", choices=["smooth", "branching"])
+    ap.add_argument("--walks-root", default="data_branch")
     ap.add_argument("--horizon", type=int, default=2)
     ap.add_argument("--tier", default="shakedown")
     ap.add_argument("--head-steps", type=int, default=400)
