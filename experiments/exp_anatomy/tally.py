@@ -77,6 +77,26 @@ def main():
             print(f"  {row:14s} | {mval:10.3f} | {fval:8.3f} | {sval:10.3f} | {len(ms)}")
         print()
 
+    # A3 mechanism diagnostics (not a capability column; explains the axes)
+    dkeys = sorted([k for k in agg if k[0] == "diagnose"], key=lambda k: rank(k[1]))
+    if dkeys:
+        cols = ["i_pose_nats", "i_appear_nats", "uniformity", "alignment",
+                "eff_rank", "smoothness"]
+        hdr = ["i_pose", "i_appr", "unif", "align", "rank", "smooth"]
+        print("## diagnose  (mechanism; higher I = more decodable)")
+        print("  " + f"{'row':14s} | " + " | ".join(f"{h:>7s}" for h in hdr))
+        for (_, row) in dkeys:
+            ms = agg[("diagnose", row)]
+
+            def davg(key):
+                vals = [m[key] for m in ms if key in m and m[key] is not None
+                        and m[key] == m[key]]
+                return sum(vals) / len(vals) if vals else float("nan")
+
+            cells = " | ".join(f"{davg(c):7.3f}" for c in cols)
+            print(f"  {row:14s} | {cells}")
+        print()
+
     with open("results/anatomy/matrix_tally.jsonl", "w") as fh:
         for d in rows:
             fh.write(json.dumps({k: d.get(k) for k in
