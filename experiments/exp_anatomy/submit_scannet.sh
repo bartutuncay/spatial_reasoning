@@ -4,8 +4,11 @@
 # Split across both GPU pools. Results -> results/anatomy_scannet.
 set -euo pipefail
 cd /cluster/scratch/aleonel/spatial_jepa
-SCENES_CSV=$(printf "scene%04d_00," $(seq 0 19) | sed 's/,$//')
-COMMON="SJEPA_SCENES=${SCENES_CSV},SJEPA_PROCESSED_ROOT=datasets_scannet/walks"
+# SLURM --export uses COMMAS as its delimiter, so a comma-separated value cannot go
+# in the --export list (it silently truncates at the first comma). Export it in THIS
+# shell instead; --export=ALL then carries it to every job intact.
+export SJEPA_SCENES=$(printf "scene%04d_00," $(seq 0 19) | sed 's/,$//')
+export SJEPA_PROCESSED_ROOT="datasets_scannet/walks"
 A100="--partition=gpupr.4h --account=es_dgess --gpus=nvidia_a100_80gb_pcie:1"
 HE="--partition=gpuhe.4h --account=ls_helbi --gpus=nvidia_geforce_rtx_4090:1"
 TRAINED="scratch recon symalign contrastive jepa rgb_only fuse_cj_25 fuse_cj_50 fuse_cj_75"
@@ -15,14 +18,14 @@ REFS="dinov2s dinov2b siglip qwen2vl"
 declare -A EXJ
 for M in $REFS; do
   EXJ[$M]=$(sbatch --parsable $A100 --job-name sx_${M} \
-    --export=ALL,${COMMON},MODEL=${M},OUTROOT=results/anatomy_refs_scannet \
+    --export=ALL,MODEL=${M},OUTROOT=results/anatomy_refs_scannet \
     experiments/exp_anatomy/extract_refs.sbatch)
 done
 
 i=0
 sub() {  # sub <pool> <name> <MODULE> "<ARGS>"
   sbatch $1 --time=03:55:00 --job-name "$2" \
-    --export=ALL,${COMMON},MODULE=$3,ID=$2,RESDIR=anatomy_scannet,ARGS="$4" \
+    --export=ALL,MODULE=$3,ID=$2,RESDIR=anatomy_scannet,ARGS="$4" \
     experiments/exp_anatomy/probe.sbatch >/dev/null
 }
 alt() { i=$((i+1)); [ $((i%2)) -eq 0 ] && echo "$HE" || echo "$A100"; }
@@ -43,7 +46,7 @@ for M in $REFS; do
               "navdist spatialpairs --channel navdist" "relpose spatialpairs --channel relpose"; do
     set -- $spec; CH=$1; MOD=$2; shift 2; EXTRA="$*"
     sbatch $HE --time=01:30:00 --dependency=afterok:${EXJ[$M]} --job-name "sn_${CH}_ref_${M}" \
-      --export=ALL,${COMMON},MODULE=${MOD},ID=sn_${CH}_ref_${M},RESDIR=anatomy_scannet,ARGS="--features-dir ${FD} ${EXTRA} --tier shakedown" \
+      --export=ALL,MODULE=${MOD},ID=sn_${CH}_ref_${M},RESDIR=anatomy_scannet,ARGS="--features-dir ${FD} ${EXTRA} --tier shakedown" \
       experiments/exp_anatomy/probe.sbatch >/dev/null
   done
 done
