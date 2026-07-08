@@ -13,4 +13,5 @@ set -eo pipefail; set +u
 source "$(conda info --base 2>/dev/null || echo $HOME/miniforge3)/etc/profile.d/conda.sh"
 conda activate /cluster/scratch/aleonel/spatial_jepa/env
 SID=$(printf "scene%04d_00" "$SLURM_ARRAY_TASK_ID")
-python experiments/data/gen_scannet_walks.py --scene "$SID" --seeds "${NSEEDS:-26}"
+python experiments/data/gen_scannet_walks.py --scene "$SID" --seeds "${NSEEDS:-26}" \
+  --n-points "${NPOINTS:-1500000}" --out-root "${OUTROOT:-datasets_scannet/walks}"
