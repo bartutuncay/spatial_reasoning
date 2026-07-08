@@ -44,12 +44,14 @@ def _infonce_bound(Ztr, Ttr, Zev, Tev, dev, steps=300, emb=64, seed=0):
     """Train critics f(z), g(t); return eval InfoNCE bound on I in nats
     (bound = log B - CE, capped by log B)."""
     torch.manual_seed(seed)
+    if len(Ztr) < 4 or len(Zev) < 4:
+        return float("nan")
     f = _mlp(Ztr.shape[1], 128, emb).to(dev)
     g = _mlp(Ttr.shape[1], 128, emb).to(dev)
     opt = torch.optim.AdamW(list(f.parameters()) + list(g.parameters()), lr=1e-3)
     X = torch.as_tensor(Ztr, dtype=torch.float32, device=dev)
     T = torch.as_tensor(Ttr, dtype=torch.float32, device=dev)
-    B = 256
+    B = min(256, len(X))
     for _ in range(steps):
         perm = torch.randperm(len(X), device=dev)[:B]
         a = F.normalize(f(X[perm]), dim=1)
@@ -61,14 +63,15 @@ def _infonce_bound(Ztr, Ttr, Zev, Tev, dev, steps=300, emb=64, seed=0):
     with torch.no_grad():
         Xe = torch.as_tensor(Zev, dtype=torch.float32, device=dev)
         Te = torch.as_tensor(Tev, dtype=torch.float32, device=dev)
+        Be = min(256, len(Xe))                       # eval batch (handle small sets)
         bounds = []
-        for i in range(0, len(Xe) - B + 1, B):
-            a = F.normalize(f(Xe[i:i + B]), dim=1)
-            b = F.normalize(g(Te[i:i + B]), dim=1)
+        for i in range(0, len(Xe) - Be + 1, Be):
+            a = F.normalize(f(Xe[i:i + Be]), dim=1)
+            b = F.normalize(g(Te[i:i + Be]), dim=1)
             logits = a @ b.T / 0.1
-            lab = torch.arange(B, device=dev)
+            lab = torch.arange(Be, device=dev)
             ce = 0.5 * (F.cross_entropy(logits, lab) + F.cross_entropy(logits.T, lab))
-            bounds.append(float(np.log(B) - ce.item()))
+            bounds.append(float(np.log(Be) - ce.item()))
     return float(np.mean(bounds)) if bounds else float("nan")
 
 

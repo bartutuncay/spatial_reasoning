@@ -102,15 +102,14 @@ scratch — ready for the generality/modality waves.
 | ref: DINOv2-S | 0.532 | 0.474 |
 | ref: Qwen2-VL-2B tower | 0.569 | 0.448 |
 
-- **Striking negative for the small rows:** *every* from-scratch 128-d embedding
-  sits at or **below** the train-mean floor on metric depth — including `recon`,
-  which was literally trained with a depth decoder. The cross-modal 128-d space
-  does **not** carry linearly-decodable metric depth.
-- **Foundation models carry ~3× more** (AbsRel 0.43–0.57 vs floor 1.65). The
-  column has dynamic range only because of the reference row.
-- Absolute AbsRel is poor even for refs (good depth is <0.1): a single global
-  vector → full-grid linear map is a deliberately weak probe; read the **ordering**
-  (refs ≫ trained ≈ floor), not the absolutes.
+> **SUPERSEDED (2026-07-08):** these numbers used raw (un-standardized) latents as
+> the linear-probe input. Un-normalized rows (esp. `rgb_only`) diverged the head and
+> masked real signal (one cell overflowed to `inf`). The corrected, **scale-invariant
+> protocol** (z-score features by train stats) is in the Wave-2 full-matrix section
+> below and **reverses the conclusion**: the trained rows *do* carry modest,
+> linearly-decodable depth (AbsRel ~1.08 vs floor 1.65), just far less than
+> foundation models (~0.45). Keep only the ordering claim (refs ≫ trained);
+> the "trained ≈ floor / carries no depth" claim was a scale artifact.
 
 ## Reading so far (2 of 7 columns)
 The intended **double dissociation** is not yet visible because the trained rows
@@ -134,6 +133,48 @@ and (b) more scenes / Replica scale to lift the trained rows off the floor.
   Replica v1 (18 scenes) now fully extracted on scratch.
 - **SigLIP depth CUDA device-side assert** (1 cell): identical re-run passed
   (AbsRel 0.499) → confirmed transient node fault, not a code path.
+
+---
+
+# Capability-Anatomy — Wave 2 full matrix (2026-07-08)
+
+All 5 capability columns × 6 trained rows (+ rgb_only unimodal control) × 4 frozen
+foundation-model refs, 2 seeds, shakedown tier, 5 ETH3D scenes. Depth uses the
+corrected scale-invariant probe (supersedes the Wave-1 depth table). Column metric
+conventions: placerec acc↑ (floor 0.20); depth AbsRel↓ (floor 1.65); rollout
+delta-R²↑ (copy-last floor 0); navdist R²↑; relpose dir-cos↑. Auto: `tally.py`.
+
+| row | placerec↑ | depth↓ | rollout↑ | navdist↑ | relpose↑ |
+|---|---|---|---|---|---|
+| scratch (random) | 0.217 | 1.080 | 0.190 | 0.031 | −0.015 |
+| rgb_only (img SSL) | 0.480 | 1.150 | −0.019 | 0.091 | 0.095 |
+| recon | 0.647 | **1.074** | 0.271 | 0.206 | 0.126 |
+| symalign | 0.555 | 1.392 | 0.302 | 0.159 | 0.070 |
+| **contrastive** | **0.675** | 1.116 | **−0.036** | **0.390** | **0.232** |
+| **jepa** | 0.532 | 1.674 | **0.337** | 0.199 | 0.110 |
+| ref: DINOv2-S | 1.000 | 0.495 | 0.112 | 0.663 | 0.545 |
+| ref: DINOv2-B | 0.990 | **0.435** | 0.033 | 0.630 | 0.488 |
+| ref: SigLIP | 1.000 | 0.483 | 0.049 | **0.722** | 0.482 |
+| ref: Qwen2-VL-2B | 0.970 | 0.498 | 0.134 | 0.607 | 0.337 |
+
+**The core finding — a double dissociation on the contrastive↔jepa antipode:**
+- `contrastive` is **best of the trained rows at place-rec, navdist, relpose** but
+  **worst at rollout** (−0.04). `jepa` is **best at rollout** (0.34) but mid-pack
+  discriminative. No single objective wins both families.
+- **Two capability axes, not one "spatial" axis:** place-rec + navdist + relpose all
+  favor contrastive (relating/ID-ing views is a *discrimination* task); only forward
+  **rollout** favors the predict-objectives (jepa, symalign). "Spatial" splits into a
+  **discriminative-relational** axis and a **predictive** axis.
+- **Corrected depth reading:** trained rows now clearly beat the floor (1.07–1.4 vs
+  1.65); `recon` best (1.074), `jepa` worst (1.674, at floor) — predictive abstraction
+  costs metric-depth readout. Foundation models still dominate (~0.45).
+- **Foundation refs** top every column (as designed anchors); they lead rollout only
+  modestly (0.03–0.13) and *below* jepa (0.34) — but cross-dim rollout-R² is confounded
+  (refs 384–1536-d vs 128-d), so that specific comparison is not claimed.
+
+**Caveats (unchanged):** rollout `action_gap ≈ 0` for all trained rows ⇒ this is
+temporal latent *predictability*, not action-conditioned dynamics (A2 branching walks
+test this). 5 scenes, 200-step pretraining, 2 seeds.
 
 ---
 
