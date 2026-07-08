@@ -93,7 +93,7 @@ def run(args):
     # encode. For ref rows the caches are already populated from the feature files.
     if vae is not None:
         need = sorted({f for fs in list(tr_seqs.values()) + list(ev_seqs.values()) for f in fs})
-        BS = 32
+        BS = 16                               # matches proven-safe encode_arm_latents batch
         for i in range(0, len(need), BS):
             chunk = need[i:i + BS]
             imgs, samples = [], []

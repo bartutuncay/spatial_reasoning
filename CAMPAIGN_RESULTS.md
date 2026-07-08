@@ -202,3 +202,52 @@ Placed between the measured antipodes (jepa=λ0, contrastive=λ1):
   (~0.13) — consistent with those columns patterning discriminative (contrastive-favoring).
 - Depth column being re-run under a scale-invariant (z-scored input) probe protocol; numbers
   folded in once that sub-battery drains (fixes the earlier rgb_only inf at its root).
+
+---
+
+# Wave-3 A3 — mechanism diagnostics (2026-07-08)
+
+Per-row information measures (frozen encoder), meant to EXPLAIN the capability
+axes. I(z;·) = InfoNCE lower bound in nats (cap log256≈5.5); smoothness = mean
+consecutive-step Δ / mean pairwise Δ; alignment = augmentation E‖z1−z2‖² (arms
+only); rank = effective rank. 5 scenes, shakedown.
+
+| row | I(z;pose) | I(z;appear) | eff-rank | smooth |
+|---|---|---|---|---|
+| scratch (random) | 1.45 | 2.14 | 94 | 0.55 |
+| rgb_only (img SSL) | 1.35 | 2.12 | **7.4** | 0.19 |
+| recon | 0.16 | 0.85 | 116 | 0.85 |
+| symalign | −0.25 | 0.55 | 117 | 0.89 |
+| **contrastive** | **0.98** | **1.46** | 69 | 0.51 |
+| **jepa** | −0.22 | **0.39** | 121 | 0.91 |
+| fuse_cj_25 | −0.01 | 0.59 | 119 | 0.89 |
+| fuse_cj_50 | 0.16 | 0.76 | 118 | 0.87 |
+| fuse_cj_75 | 0.33 | 0.83 | 115 | 0.83 |
+| ref: DINOv2-S/B, SigLIP, Qwen | 2.3–2.4 | 2.6–2.8 | 196–352 | 0.39–0.44 |
+
+**Mechanism findings:**
+- **The discriminative axis is explained by decodable appearance/pose info.**
+  Among cross-modal trained rows, `contrastive` retains the most I(z;appear) 1.46
+  and I(z;pose) 0.98; `jepa` the least (0.39 / −0.22). This *is* why contrastive
+  wins place-rec/navdist/relpose and jepa wins only rollout — predictive
+  abstraction **measurably discards the appearance & pose information discrimination
+  needs.** The fusion rows interpolate **monotonically** in both (I(z;appear)
+  0.59→0.83, I(z;pose) −0.01→0.33 as λ↑) — the mechanism knob tracks the frontier.
+- **Cross-modal conditioning is an anti-collapse regularizer.** Image-only SSL
+  (`rgb_only`) collapses to **effective rank 7.4** (vs ~115–121 for the cross-modal
+  rows) — this is the root of its earlier depth-probe divergence and its weakness on
+  the geometric columns. Adding the point-cloud target prevents that collapse. A
+  clean, quotable "why multimodal" result.
+- **The predictive (rollout) axis is not a clean single-variable story.** jepa pairs
+  high smoothness (0.91) + high rank (121) + low appearance; but contrastive
+  (smooth 0.51, worst rollout) breaks a naive smoothness law. Report rollout-vs-
+  diagnostics as a Spearman-ρ panel (Task 4), not a one-liner.
+- Foundation refs dominate every measure (high I, high rank) — expected anchors.
+
+## Action-conditioned rollout (A2) — status: BLOCKED, not yet measured
+Branching walks generated (3600 samples, 4 scenes, same-anchor 3-action). First
+battery **timed out** (per-pair `load_walk` of graph-heavy branch files); fixed
+with single-pass batched frame caching (11.7 min vs 50-min wall). Re-run then hit
+a CUDA illegal-memory-access on the batch-32 encode; dropped to the proven batch-16.
+Re-piloting. **The action-gap verdict — whether rollout is genuinely
+action-conditioned or just temporal predictability — is still pending this battery.**
