@@ -310,3 +310,42 @@ the strengthening spec, resolved against the strong claim.)
   negative there too — the dissociation is consistent across smooth & branching walks.
 - A few jepa seeds DEAD on the pre-existing PCD "2 origin nodes" flake (jepa rollout
   n=1 on branching); rerun pending, won't move the qualitative story.
+
+---
+
+# ScanNet generality (2026-07-09, shakedown)
+
+Second, real-scan dataset (20 ScanNet v2 scenes; walks rendered from `_vh_clean_2`
+meshes via the ETH3D raycaster with dense surface sampling; ~30% render fill due to
+genuine scan incompleteness). Shakedown tier, 2 seeds, `SJEPA_SCENES` scene-set.
+~110 jobs; core rows complete. Metric conventions as elsewhere.
+
+| row | placerec↑ | placerec NN@1↑ | rollout↑ | depth↓ | navdist↑ | relpose↑ |
+|---|---|---|---|---|---|---|
+| scratch | 0.056 (=floor) | 0.685 | 0.371 | **0.515** | 0.021 | 0.003 |
+| **contrastive** | **0.204** | **0.322** | **0.283** | 0.851 | 0.012 | 0.055 |
+| **jepa** | 0.159 | 0.102 | **0.361** | 0.910 | −0.266 | 0.031 |
+| recon | 0.168 | 0.124 | 0.340 | 0.893 | −0.350 | 0.004 |
+| symalign | 0.165 | 0.091 | 0.340 | 0.925 | −0.366 | 0.009 |
+| fuse_cj_25/50 | 0.15–0.17 | 0.10–0.12 | 0.357–0.359 | ~0.85 | ~−0.13 | 0.02–0.06 |
+| ref: SigLIP/DINOv2 | 0.74–0.85 | 0.84–0.93 | 0.14–0.24 | 0.31–0.33 | −0.12 to 0.01 | 0.09–0.14 |
+
+**Core dissociation REPRODUCES cross-dataset:**
+- **Discriminative (placerec):** contrastive best trained (0.204 acc, NN@1 0.322);
+  predict-objectives lower — same ordering as ETH3D.
+- **Predictive (rollout):** contrastive **worst** trained (0.283); jepa/recon/symalign
+  higher — same ordering as ETH3D. The contrastive↔jepa antipode holds on ScanNet.
+
+**Honest limits (do not overstate the other columns):**
+- **navdist/relpose ≈ floor** on ScanNet — small single rooms → low pairwise-distance
+  variance → the regression is near-uninformative (dataset property, not method).
+- **depth anomalous** — scratch (0.515) beats trained (0.85–0.91). Likely a shakedown
+  transfer artifact: 200-step cross-modal training on sparse ScanNet renders barely
+  moves (or scrambles) the low-level depth gradient that random conv features already
+  expose to a linear probe. A **bulk ScanNet run** would settle this.
+- All shakedown tier / ~30% render fill → lower absolutes than the ETH3D bulk matrix.
+
+**Takeaway:** the headline two-axis dissociation (contrastive wins discrimination,
+loses rollout; predict-objectives opposite) transfers to real ScanNet scans; the
+pairwise-geometry and depth columns are dataset/tier-limited and want a bulk re-run
+before they carry weight in the paper.

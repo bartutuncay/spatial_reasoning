@@ -30,7 +30,7 @@ COLS = {
 def load(results_dir="results/anatomy"):
     out = []
     for f in sorted(glob.glob(f"{results_dir}/*/result.json")):
-        if "/pil_" in f:                 # skip pilot runs (contaminate aggregation)
+        if "pilot" in f or "/pil_" in f:   # skip pilot runs (contaminate aggregation)
             continue
         try:
             out.append(json.load(open(f)))
