@@ -102,11 +102,14 @@ def main():
             print(f"  {row:14s} | {cells}")
         print()
 
-    with open("results/anatomy/matrix_tally.jsonl", "w") as fh:
+    # Write the JSONL INTO the results-dir it read, so datasets don't clobber
+    # each other (results/anatomy/, results/anatomy_bulk/, results/anatomy_scannet/).
+    out_jsonl = f"{results_dir.rstrip('/')}/matrix_tally.jsonl"
+    with open(out_jsonl, "w") as fh:
         for d in rows:
             fh.write(json.dumps({k: d.get(k) for k in
                      ("id", "channel", "status", "verdict", "primary", "metrics")}) + "\n")
-    print("wrote results/anatomy/matrix_tally.jsonl")
+    print(f"wrote {out_jsonl}")
 
 
 if __name__ == "__main__":
