@@ -116,9 +116,7 @@ def run(args):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--objective", default="scratch",
-                    choices=["scratch", "jepa", "symalign", "contrastive", "recon", "rgb_only",
-                             "fuse_cj_25", "fuse_cj_50", "fuse_cj_75"])
+    ap.add_argument("--objective", default="scratch")  # free-form: modality rows are cj<pct>@<mod>
     ap.add_argument("--features-dir", default=None)
     ap.add_argument("--encoder-ckpt", default=None)   # reuse a pretrain_ckpt encoder
     ap.add_argument("--head", default="linear", choices=["linear", "mlp"])

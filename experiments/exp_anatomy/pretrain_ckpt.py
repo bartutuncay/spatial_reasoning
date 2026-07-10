@@ -35,7 +35,12 @@ def run(args):
     root = Path(args.processed_root)
     autoenc = _load_module("sjepa_autoenc", ROOT / "training_scripts" / "1_autoencoder.py")
     vae = autoenc.ImageGraphVAE(args.latent_dim).to(dev).train()
-    if args.objective != "scratch":
+    from experiments.exp_anatomy.modality import parse_row, pretrain_modality
+    if parse_row(args.objective):                 # cj<pct>@<modality> rows
+        assets = os.environ.get("SJEPA_ASSETS_ROOT", str(root.parent))
+        pretrain_modality(vae, autoenc, [root / s / "random_walks" for s in SCENES],
+                          args.objective, args.steps, dev, assets_root=assets)
+    elif args.objective != "scratch":
         pretrain_encoder(vae, autoenc, [root / s / "random_walks" for s in SCENES],
                          args.objective, args.steps, dev)
     out_dir = Path(args.out); out_dir.mkdir(parents=True, exist_ok=True)
