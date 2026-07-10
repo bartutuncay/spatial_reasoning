@@ -67,7 +67,11 @@ def run(args):
     #              ANCHOR so all branches of an anchor stay in one split — the
     #              eval set then contains same-state different-action futures,
     #              which is what makes the action-gap meaningful.
-    all_seqs = {}
+    # Split WITHIN every scene (hold out walk seeds / anchors per scene), like
+    # every other probe. Pooling scenes and splitting on the pooled index held
+    # out the last-inserted scene wholesale — an unintended cross-scene split
+    # that broke the oracle control (train/eval world frames disjoint).
+    tr_seqs, ev_seqs = {}, {}
     if args.walks == "branching":
         from experiments.exp_anatomy.common import branch_sequences
         wroot = Path(args.walks_root)
@@ -75,19 +79,19 @@ def run(args):
         if not scenes_present:
             raise FileNotFoundError(f"no branch walks under {wroot}")
         for sc in scenes_present:
-            for (anchor, branch), fs in branch_sequences(wroot, sc).items():
-                all_seqs[(sc, anchor, branch)] = fs
-        anchors = sorted({(sc, a) for (sc, a, _) in all_seqs})
-        n_ev = max(2, len(anchors) // 5)
-        ev_anchors = set(anchors[-n_ev:])
-        tr_seqs = {k: v for k, v in all_seqs.items() if (k[0], k[1]) not in ev_anchors}
-        ev_seqs = {k: v for k, v in all_seqs.items() if (k[0], k[1]) in ev_anchors}
+            seqs = branch_sequences(wroot, sc)
+            anchors = sorted({a for (a, _) in seqs})
+            ev_a = set(anchors[-max(1, len(anchors) // 5):])
+            for (anchor, branch), fs in seqs.items():
+                (ev_seqs if anchor in ev_a else tr_seqs)[(sc, anchor, branch)] = fs
     else:
         for sc in SCENES:
-            for seed, fs in walk_sequences(root, sc).items():
-                all_seqs[f"{sc}:{seed}"] = fs
-        idx_seqs = {i: v for i, v in enumerate(all_seqs.values())}
-        tr_seqs, ev_seqs = split_seeds(idx_seqs, n_eval=max(2, len(idx_seqs) // 6))
+            seqs = walk_sequences(root, sc)
+            tr_s, ev_s = split_seeds(seqs, n_eval=max(1, len(seqs) // 6))
+            for seed, fs in tr_s.items():
+                tr_seqs[f"{sc}:{seed}"] = fs
+            for seed, fs in ev_s.items():
+                ev_seqs[f"{sc}:{seed}"] = fs
     if args.tier == "pilot":
         tr_seqs = dict(list(tr_seqs.items())[:3]); ev_seqs = dict(list(ev_seqs.items())[:2])
 

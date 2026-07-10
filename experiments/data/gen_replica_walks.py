@@ -68,12 +68,25 @@ def main():
     out_dir = Path(args.out_root) / sc / "random_walks"
     out_dir.mkdir(parents=True, exist_ok=True)
 
+    # Replica mesh.ply are QUAD meshes: o3d's triangle reader fails on them
+    # ("polygon could not be decomposed"). The vertex cloud itself is dense
+    # (millions of colored vertices), so read vertices directly; only fall back
+    # to surface sampling when a triangle mesh actually loads.
     tm = o3d.io.read_triangle_mesh(str(ply))
-    if not tm.has_vertex_colors():
-        tm.paint_uniform_color([0.5, 0.5, 0.5])
-    pcd = tm.sample_points_uniformly(number_of_points=args.n_points)
+    if len(tm.triangles) > 0:
+        if not tm.has_vertex_colors():
+            tm.paint_uniform_color([0.5, 0.5, 0.5])
+        pcd = tm.sample_points_uniformly(number_of_points=args.n_points)
+    else:
+        pcd = o3d.io.read_point_cloud(str(ply))
+        if len(pcd.points) == 0:
+            raise RuntimeError(f"could not read {ply} as mesh or point cloud")
     pts = np.asarray(pcd.points)
     cols = np.asarray(pcd.colors)
+    if len(cols) != len(pts):
+        cols = np.full((len(pts), 3), 0.5, dtype=np.float32)
+    print(f"{sc}: loaded {len(pts)} points "
+          f"({'sampled mesh' if len(tm.triangles) else 'vertex cloud'})", flush=True)
     pts = gravity_align(pts, args.up, args.flip)
     print(f"{sc}: {len(pts)} pts, z[{pts[:,2].min():.2f},{pts[:,2].max():.2f}] "
           f"xy extent {pts[:,0].max()-pts[:,0].min():.1f}x{pts[:,1].max()-pts[:,1].min():.1f}m",

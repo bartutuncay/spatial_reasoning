@@ -127,4 +127,42 @@ for S in $SEEDS; do
 done
 echo "phase F: vjepa2 fetch/extract/probes queued"
 
+# ---- Phase G: rollout re-measure under the FIXED within-scene split ---------
+# The pooled-index split accidentally held out the last scene wholesale; all
+# prior rollout numbers were cross-scene. Re-measure k=2 into anatomy_bulk
+# (same IDs, overwrite; old tallies preserved in git) + corrected action-gap
+# into anatomy_controls.
+for OBJ in $ROWS; do for S in $SEEDS; do
+  DEP="--dependency=afterok:${CK[${OBJ}_${S}]}"
+  probe "b_rollout_${OBJ}_s${S}" rollout anatomy_bulk \
+    "--objective ${OBJ} --encoder-ckpt $(ckpt $OBJ $S) --seed ${S} --tier bulk --horizon 2" "$DEP"
+  probe "ra_rolloutact_${OBJ}_s${S}" rollout anatomy_controls \
+    "--objective ${OBJ} --encoder-ckpt $(ckpt $OBJ $S) --walks branching --seed ${S} --tier bulk --horizon 2" "$DEP"
+done; done
+for S in $SEEDS; do
+  probe "b_rollout_scratch_s${S}" rollout anatomy_bulk \
+    "--objective scratch --seed ${S} --tier bulk --horizon 2"
+  probe "ra_rolloutact_scratch_s${S}" rollout anatomy_controls \
+    "--objective scratch --walks branching --seed ${S} --tier bulk --horizon 2"
+done
+for M in $REFS; do for S in $SEEDS; do
+  probe "b_rollout_ref_${M}_s${S}" rollout anatomy_bulk \
+    "--features-dir results/anatomy_refs/${M} --seed ${S} --tier bulk --horizon 2"
+done; done
+echo "phase G: ETH3D rollout re-measure (fixed split) queued"
+
+# ---- Phase H: ScanNet rollout re-measure (LAST: comma-valued env export) ----
+export SJEPA_SCENES=$(printf "scene%04d_00," $(seq 0 19) | sed 's/,$//')
+export SJEPA_PROCESSED_ROOT="datasets_scannet/walks"
+SN_ROWS="scratch recon symalign contrastive jepa rgb_only fuse_cj_25 fuse_cj_50 fuse_cj_75"
+for OBJ in $SN_ROWS; do for S in $SEEDS; do
+  probe "sn_rollout_${OBJ}_s${S}" rollout anatomy_scannet_bulk \
+    "--objective ${OBJ} --seed ${S} --tier bulk --horizon 2" "" 03:55:00
+done; done
+for M in $REFS; do for S in $SEEDS; do
+  probe "sn_rollout_ref_${M}_s${S}" rollout anatomy_scannet_bulk \
+    "--features-dir results/anatomy_refs_scannet/${M} --seed ${S} --tier bulk --horizon 2"
+done; done
+echo "phase H: ScanNet rollout re-measure queued"
+
 squeue -u aleonel -h | wc -l | xargs echo "TOTAL jobs now in queue:"

@@ -387,3 +387,30 @@ Resolves the shakedown's depth anomaly.
 **Paper impact:** Generality paragraph upgraded from "core ordering reproduces, depth
 confounded, dataset-limited" to a cross-dataset claim spanning place-rec, rollout,
 depth, and the action-gap negative. Only pairwise geometry remains near-floor.
+
+---
+
+# Rollout split bug found + fixed (2026-07-10, via oracle positive control)
+
+The review-driven oracle-state positive control (ground-truth [loc, view_dir]
+as the "representation") FAILED its pilot: delta-R2 negative, action-gap
+exactly 0. A synthetic same-frame repro of the identical head/standardization
+passed (delta-R2 0.80, gap +1.5), isolating the bug to data plumbing:
+**rollout pooled all scenes into one enumerated dict before split_seeds, which
+holds out the highest indices = the last-inserted scene wholesale.** ETH3D
+rollout was effectively train-on-4-scenes / eval-on-hospital; ScanNet eval was
+the last ~3 scenes. Every other probe splits within-scene. The branching
+(action-gap) split had the same flavor (lexicographically-last scene's anchors).
+
+Consequences:
+- All prior rollout / rollout_act numbers were measured under an unintended
+  cross-scene protocol. Orderings may hold (protocol was identical across rows)
+  but absolute values are not the intended within-scene predictability.
+- Fixed in rollout.py (per-scene seed split, per-scene anchor split).
+- Re-measure waves queued: ETH3D b_rollout_* (anatomy_bulk, overwriting IDs;
+  old tallies preserved in git), corrected action-gap ra_rolloutact_* ->
+  anatomy_controls, ScanNet sn_rollout_* (anatomy_scannet_bulk), and the oracle
+  control alongside.
+- Paper impact: rollout column + action-gap numbers must be refreshed after the
+  re-measure lands; the oracle control now validates that the harness CAN
+  detect action-conditioning (the reviewer's Q10).
