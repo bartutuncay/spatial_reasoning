@@ -468,3 +468,29 @@ compute. Discriminative-relational axis is the durable one.
 **Replica status:** quad-mesh → plyfile triangulation path segfaults in the
 render job (debug job isolating the faulting step); multi-room dataset still
 pending.
+
+---
+
+# Intervention wave + Replica dataset (2026-07-10, late)
+
+**Intervention (42 jobs):** removing the top-k appearance-predictive subspace
+(k≈5) drops place-rec consistently more than an equal-dim random subspace
+(jepa −.067±.015 vs −.005; fused −.04 vs ~0; refs k≈13, no drop — saturated),
+but absolute drops are small: appearance information is redundantly coded and
+one linear projection cannot delete it. Reported in the paper as a qualified
+interventional check; mechanism stays correlational. (Iterative nullspace
+projection would be the stronger tool if reviewers push.)
+
+**Curve reruns:** 5k contrastive rollout now n=3 (.341); 15k contrastive depth
+n=3 (.534). Fig 4 regenerated.
+
+**Replica multi-room dataset GENERATED:** 12 scenes × 26 walks × 40 steps =
+12,164 frames (97.5% save rate; renders upright, dense, near-full fill).
+Root cause of earlier segfault: open3d 0.18 is numpy-2 incompatible — env
+restored to numpy 1.26.4 + plyfile 1.0.3. Env note: numpy version matters for
+open3d only (data-gen); probes are torch-only.
+
+**Replica matrix wave fired:** submit_replica.sh — 5 ref extractions +
+(9 trained + 5 ref rows) × 5 probes × 3 seeds → results/anatomy_replica_bulk
+(~215 jobs). This is the multi-room test of nav-dist/rel-pose — the
+geometric-evidence answer to the "is place-rec spatial?" critique.
