@@ -494,3 +494,36 @@ open3d only (data-gen); probes are torch-only.
 (9 trained + 5 ref rows) × 5 probes × 3 seeds → results/anatomy_replica_bulk
 (~215 jobs). This is the multi-room test of nav-dist/rel-pose — the
 geometric-evidence answer to the "is place-rec spatial?" critique.
+
+---
+
+# Replica objective matrix (2026-07-10 night, 210 jobs, 0 failures)
+
+12 multi-room scenes, bulk tier, 3 seeds. Third dataset for the anatomy.
+
+| row | placerec↑ (fl .087) | depth↓ (fl .743) | rollout↑ | act-gap |
+|---|---|---|---|---|
+| scratch | .087 | **.339** | .293 | −.017 |
+| rgb_only | .080 | .591 | .163 | −.001 |
+| recon | .144 | .386 | .287 | −.014 |
+| symalign | .124 | .677 | .318 | −.002 |
+| **contrastive** | **.183** | .375 | **.098 (worst)** | −.057 |
+| **jepa** | .118 | .664 | **.397 (best)** | −.000 |
+| fuse 25/50/75 | .135–.148 | .425–.452 | .337–.374 | ≈0 |
+| refs (DINOv2/SigLIP/Qwen/VJEPA2) | .50–.53 | .256–.306 | .14–.19 | ≈0 |
+
+**Three-dataset reproduction:** contrastive best-trained placerec and worst
+rollout on ETH3D + ScanNet + Replica; jepa the reverse; action-gap ≈ 0 for
+predictive rows everywhere. Rollout dissociation SHARPEST on Replica
+(contrastive .098 vs jepa .397, 4×). Depth: jepa/symalign reliably worst on
+all three; scratch best-or-tied on the two scan-like datasets.
+
+**The headline new finding: nav-dist/rel-pose are ~ZERO for EVERY row
+INCLUDING foundation models** (best navdist: SigLIP .049; relpose refs .10–.19,
+trained ~0). On genuinely multi-room scenes, pairwise metric geometry from two
+egocentric views is near-unlearnable — cross-room pairs share no visual
+context. This REFRAMES the near-floor columns: not dataset-limited but
+*egocentric-representation-limited*. The pending modality matrix (cj@layout /
+cj@objgraph, allocentric targets) is now the decisive test: if layout
+conditioning lifts navdist above zero where DINOv2-B fails, conditioning
+injects allocentric structure that scale alone does not.
