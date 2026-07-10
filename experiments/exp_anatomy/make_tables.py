@@ -11,9 +11,12 @@ Usage:
     python -m experiments.exp_anatomy.make_tables <out_dir>  # override target
 """
 import json
+import statistics
 import sys
 from collections import defaultdict
 from pathlib import Path
+
+EXPECTED_SEEDS = 3
 
 HERE = Path(__file__).resolve().parent
 PAPER_TABLES = HERE.parents[2] / "paper" / "tables"  # spatial_reasoning/paper/tables
@@ -44,8 +47,13 @@ BOLD_ELIGIBLE = {r for r, _ in ROWS if r != "scratch"}
 
 
 def load_means(tally_path):
-    """channel 'probe:row' -> mean(primary) over seeds, ok rows only."""
-    acc = defaultdict(list)
+    """channel 'probe:row' -> (mean, std, n) of primary over seeds, ok rows only.
+
+    Guards against the two silent failure modes we actually hit: duplicate
+    (channel, seed) results (a stray result dir double-counted) and missing
+    seeds (failed jobs leaving a cell at n<EXPECTED_SEEDS).
+    """
+    acc = defaultdict(dict)  # channel -> {seed: primary}
     for line in Path(tally_path).read_text().splitlines():
         if not line.strip():
             continue
@@ -54,8 +62,21 @@ def load_means(tally_path):
         if r.get("status") != "ok" or ch is None or p is None:
             continue
         if ch.count(":") and ch.split(":", 1)[0] in {c for c, _, _ in COLS}:
-            acc[ch].append(float(p))
-    return {ch: sum(v) / len(v) for ch, v in acc.items()}
+            seed = r.get("metrics", {}).get("seed")
+            if seed in acc[ch]:
+                print(f"WARNING {tally_path.name}: duplicate (channel={ch}, "
+                      f"seed={seed}) — keeping first, check the results dir")
+                continue
+            acc[ch][seed] = float(p)
+    out = {}
+    for ch, by_seed in acc.items():
+        v = list(by_seed.values())
+        if len(v) != EXPECTED_SEEDS:
+            print(f"WARNING {tally_path.name}: {ch} has n={len(v)} seeds "
+                  f"(expected {EXPECTED_SEEDS}) — cell marked, rerun missing jobs")
+        out[ch] = (statistics.mean(v),
+                   statistics.stdev(v) if len(v) > 1 else 0.0, len(v))
+    return out
 
 
 def fmt(v):
@@ -66,12 +87,17 @@ def fmt(v):
     return ("$-$" if v < 0 else "") + s
 
 
+def fmt_std(s):
+    """std as a compact subscript: 0.010 -> '.01'; 0.424 -> '.42'."""
+    return f"{s:.2f}"[1:] if s < 1 else f"{s:.1f}"
+
+
 def build(tally_path, caption, label):
     means = load_means(tally_path)
     # best (bold) value per column among eligible rows
     best = {}
     for probe, direction, _ in COLS:
-        cand = [(means[f"{probe}:{r}"], r) for r, _ in ROWS
+        cand = [(means[f"{probe}:{r}"][0], r) for r, _ in ROWS
                 if r in BOLD_ELIGIBLE and f"{probe}:{r}" in means]
         if cand:
             best[probe] = (max if direction > 0 else min)(cand)[1]
@@ -80,7 +106,10 @@ def build(tally_path, caption, label):
         key = f"{probe}:{row}"
         if key not in means:
             return "--"
-        txt = fmt(means[key])
+        m, s, n = means[key]
+        txt = f"{fmt(m)}$_{{\\pm{fmt_std(s)}}}$"
+        if n != EXPECTED_SEEDS:
+            txt += f"$^{{(n{n})}}$"  # visible flag until the gap-fill lands
         return f"\\textbf{{{txt}}}" if best.get(probe) == row else txt
 
     lines = [
