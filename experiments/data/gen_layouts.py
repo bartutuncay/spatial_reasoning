@@ -52,6 +52,9 @@ def main():
         R = rotation_a_to_b(vd, np.array([1.0, 0.0, 0.0]))
         W.append(pos @ R + loc)                    # aligned rows = (world-loc)@R.T
     W = np.concatenate(W)
+    # trim stray reconstruction outliers (ETH3D office bbox blew up 10x without)
+    lo = np.percentile(W, 0.5, axis=0); hi = np.percentile(W, 99.5, axis=0)
+    W = W[np.all((W >= lo - 0.5) & (W <= hi + 0.5), axis=1)]
     x0, y0 = W[:, 0].min() - 0.5, W[:, 1].min() - 0.5
     nx = int(np.ceil((W[:, 0].max() + 0.5 - x0) / RES))
     ny = int(np.ceil((W[:, 1].max() + 0.5 - y0) / RES))
