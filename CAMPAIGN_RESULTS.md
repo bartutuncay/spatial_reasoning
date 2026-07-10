@@ -414,3 +414,57 @@ Consequences:
 - Paper impact: rollout column + action-gap numbers must be refreshed after the
   re-measure lands; the oracle control now validates that the harness CAN
   detect action-conditioning (the reviewer's Q10).
+
+---
+
+# Review-sweep fleet results (2026-07-10, ~540 jobs, 3 failures)
+
+All numbers 3 seeds, corrected within-scene split. Full per-cell data in
+`experiments/exp_anatomy/tallies/*.jsonl`.
+
+**Corrected rollout (k=2).** ETH3D: rgb_only .420±.035 (BEST — at eff. rank 7.4),
+jepa .354±.007, symalign .349±.019, fuses .32–.33, recon .318, scratch .306,
+contrastive .285±.015 (worst). ScanNet: jepa .393±.003 top, scratch .359,
+contrastive .265±.014 worst (below random!). Contrastive-destroys /
+predictive-preserves survives the split fix; "jepa best" is clean on ScanNet,
+narrow over symalign on ETH3D.
+
+**Oracle positive control:** ground-truth pose as representation → ΔR² .88/.91,
+action-shuffle gap +1.9 (smooth/branching). The harness detects
+action-conditioning emphatically.
+
+**Corrected action-gap:** predictive/fused rows ≤ .02 (jepa .008) — the honest
+negative reproduces under a VALIDATED harness. Appearance-keeping rows DO use
+the action: rgb_only +.36±.10, scratch +.11, contrastive +.10 — smooth latents
+extrapolate without the action, detailed ones need it.
+
+**Horizon sweep (k=1/2/4/8):** jepa FLAT (.341/.354/.357/.346) — slow-feature
+signature. Everything else rises with k (contrastive .159→.404; rgb_only
+.297→.609 steepest). k=1 gives the sharpest dissociation.
+
+**Training curves (1.5k/5k/15k):** relational gaps WIDEN (relpose contrastive
+.295→.438 vs jepa .113→.133; navdist .540→.694 vs .371→.435; depth c
+.879→.561, j stuck ~1.2–1.4). placerec narrows (jepa .52→.72 vs .86) but does
+not close. ROLLOUT CONVERGES: contrastive .285→.346 ≈ jepa .339 at 15k.
+→ discriminative-relational axis durable; predictive axis is a
+finite-training, short-horizon phenomenon.
+
+**Probe-capacity flips:** discriminative/relational orderings stable under
+linear↔MLP (MLP placerec: contrastive .857, jepa .538). Rollout differences
+need the MLP readout (linear compresses all rows to .22–.29).
+
+**V-JEPA 2 reference row (ETH3D):** placerec .965, navdist .708, relpose .364,
+depth .371, rollout .191 — a PREDICTIVE foundation model behaves like the other
+refs on our probes (rollout cross-dim caveat).
+
+**Intervention pilot:** mechanics ok (scratch: no differential drop, as
+expected); full 45-job wave queued (anatomy_intervene).
+
+**Headline reframe for the paper:** latent-rollout ΔR² is NOT world-model
+evidence — flat in horizon, no action-conditioning under a validated control,
+topped by a rank-collapsed encoder, matched by pure contrastive at 10×
+compute. Discriminative-relational axis is the durable one.
+
+**Replica status:** quad-mesh → plyfile triangulation path segfaults in the
+render job (debug job isolating the faulting step); multi-room dataset still
+pending.

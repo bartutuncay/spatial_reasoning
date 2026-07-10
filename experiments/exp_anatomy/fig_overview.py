@@ -130,25 +130,24 @@ def main(assets, out):
     # mini scatter inside a framed region
     rx, ry, rw, rh = 84.5, 18, 14.5, 64
     rbox(ax, rx, ry, rw, rh, fc="white", ec=C_BOX, lw=0.8, r=0.02)
-    # data: (placerec, rollout) ETH3D bulk
-    pts = {"contrastive": (0.852, -0.093, C_CONTRAST), "jepa": (0.522, 0.355, C_JEPA),
-           "fuse": (0.792, 0.275, C_FUSE), "recon": (0.748, 0.142, C_GREY),
-           "scratch": (0.217, 0.196, C_GREY)}
-    xs = [v[0] for v in pts.values()]; ys = [v[1] for v in pts.values()]
+    # data: (placerec bulk, 1-step rollout from the horizon sweep) ETH3D
+    pts = {"contrastive": (0.852, 0.159, C_CONTRAST), "jepa": (0.523, 0.341, C_JEPA),
+           "fuse": (0.765, 0.313, C_FUSE), "recon": (0.748, 0.260, C_GREY),
+           "scratch": (0.212, 0.248, C_GREY)}
     def X(v): return rx + 2.4 + (v - 0.15) / (0.95 - 0.15) * (rw - 4.4)
-    def Y(v): return ry + 6 + (v + 0.15) / (0.40 + 0.15) * (rh - 12)
+    def Y(v): return ry + 6 + (v - 0.10) / (0.40 - 0.10) * (rh - 12)
     for name, (px, py, col) in pts.items():
         big = name in ("contrastive", "jepa")
         ax.scatter([X(px)], [Y(py)], s=42 if big else 16, c=col, zorder=6,
                    edgecolors="white", linewidths=0.5)
-    ax.annotate("", xy=(X(0.522), Y(0.355)), xytext=(X(0.852), Y(-0.093)),
+    ax.annotate("", xy=(X(0.523), Y(0.341)), xytext=(X(0.852), Y(0.159)),
                 arrowprops=dict(arrowstyle="<->", color=C_BOX, lw=0.9,
                                 connectionstyle="arc3,rad=-0.25"), zorder=5)
-    ax.text(X(0.80), Y(-0.09) - 3.2, "contrastive", ha="center", fontsize=5.8,
+    ax.text(X(0.80), Y(0.159) - 3.2, "contrastive", ha="center", fontsize=5.8,
             color=C_CONTRAST, weight="bold")
-    ax.text(X(0.50), Y(0.36) + 3.0, "jepa", ha="center", fontsize=5.8,
+    ax.text(X(0.50), Y(0.341) + 3.0, "jepa", ha="center", fontsize=5.8,
             color=C_JEPA, weight="bold")
-    ax.text(rx + rw / 2, ry + rh - 3.2, "predictive ↑", ha="center",
+    ax.text(rx + rw / 2, ry + rh - 3.2, "1-step predictive ↑", ha="center",
             fontsize=5.6, color=C_LAT)
     ax.text(rx + rw / 2, ry + 2.6, "discriminative →", ha="center",
             fontsize=5.6, color=C_LAT)

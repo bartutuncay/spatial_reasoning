@@ -31,12 +31,12 @@ plt.rcParams.update({"font.size": 9, "figure.dpi": 150, "savefig.bbox": "tight",
 
 ROWS = ["scratch", "rgb_only", "recon", "symalign", "contrastive", "jepa",
         "fuse_cj_25", "fuse_cj_50", "fuse_cj_75",
-        "ref:dinov2s", "ref:dinov2b", "ref:siglip", "ref:qwen2vl"]
+        "ref:dinov2s", "ref:dinov2b", "ref:siglip", "ref:qwen2vl", "ref:vjepa2"]
 DISP = {"scratch": "scratch", "rgb_only": "rgb-only", "recon": "recon",
         "symalign": "sym-align", "contrastive": "contrastive", "jepa": "jepa",
         "fuse_cj_25": "fuse.25", "fuse_cj_50": "fuse.50", "fuse_cj_75": "fuse.75",
         "ref:dinov2s": "DINOv2-S", "ref:dinov2b": "DINOv2-B",
-        "ref:siglip": "SigLIP", "ref:qwen2vl": "Qwen2-VL"}
+        "ref:siglip": "SigLIP", "ref:qwen2vl": "Qwen2-VL", "ref:vjepa2": "V-JEPA2"}
 # column, metric key, higher-is-better, floor key (None -> 0)
 COLS = [("placerec", "top1_acc", True, "majority_floor"),
         ("depthprobe", "absrel", False, "floor_absrel"),
