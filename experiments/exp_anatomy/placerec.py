@@ -15,9 +15,8 @@ import torch.nn.functional as F
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 from experiments.exp_anatomy.common import (  # noqa: E402
-    SCENES, encode_arm_latents, finish, pretrain_encoder, scene_files, seed_split,
+    SCENES, build_encoder, encode_arm_latents, finish, scene_files, seed_split,
 )
-from experiments.exp_jepa.fewshot import PRETRAIN_STEPS  # noqa: E402
 from experiments.exp_jepa.locate import _load_module  # noqa: E402
 
 
@@ -38,9 +37,7 @@ def _gather(args, dev):
         autoenc = _load_module("sjepa_autoenc", ROOT / "training_scripts" / "1_autoencoder.py")
         vae = autoenc.ImageGraphVAE(args.latent_dim).to(dev).train()
         root = Path(args.processed_root)
-        if args.objective != "scratch":
-            pretrain_encoder(vae, autoenc, [root / s / "random_walks" for s in SCENES],
-                             args.objective, PRETRAIN_STEPS.get(args.tier, 200), dev)
+        args._pre_steps = build_encoder(vae, autoenc, root, args, dev)
         vae.img_enc.eval()
         for si, sc in enumerate(SCENES):
             tr_f, ev_f = seed_split(scene_files(root, sc))
@@ -60,7 +57,10 @@ def run(args):
     Ztr, ytr, Zev, yev = _gather(args, dev)
     D = Ztr.shape[1]
 
-    head = torch.nn.Linear(D, len(SCENES)).to(dev)
+    C = len(SCENES)
+    head = (torch.nn.Sequential(torch.nn.Linear(D, 256), torch.nn.ReLU(),
+                                torch.nn.Linear(256, C))
+            if args.head == "mlp" else torch.nn.Linear(D, C)).to(dev)
     opt = torch.optim.AdamW(head.parameters(), lr=1e-3)
     Xtr = torch.as_tensor(Ztr, dtype=torch.float32, device=dev)
     Ttr = torch.as_tensor(ytr, dtype=torch.long, device=dev)
@@ -87,6 +87,8 @@ def run(args):
             "metrics": {"top1_acc": acc, "majority_floor": floor,
                         "nn_recall1": nn_acc, "n_train": int(len(ytr)),
                         "n_eval": int(len(yev)), "dim": int(D), "row": row,
+                        "head": args.head,
+                        "pretrain_steps": getattr(args, "_pre_steps", None),
                         "seed": args.seed, "tier": args.tier},
             "notes": f"placerec {row}: acc {acc:.3f} (floor {floor:.3f}, NN@1 {nn_acc:.3f})"}
 
@@ -97,6 +99,8 @@ def main():
                     choices=["scratch", "jepa", "symalign", "contrastive", "recon", "rgb_only",
                              "fuse_cj_25", "fuse_cj_50", "fuse_cj_75"])
     ap.add_argument("--features-dir", default=None)
+    ap.add_argument("--encoder-ckpt", default=None)   # reuse a pretrain_ckpt encoder
+    ap.add_argument("--head", default="linear", choices=["linear", "mlp"])
     ap.add_argument("--tier", default="shakedown")
     ap.add_argument("--head-steps", type=int, default=300)
     ap.add_argument("--latent-dim", type=int, default=128)

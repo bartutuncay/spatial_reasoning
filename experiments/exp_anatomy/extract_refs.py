@@ -1,5 +1,5 @@
 """Extract frozen reference-model features for every walk frame (R8 row).
-One model per invocation: dinov2s | dinov2b | siglip | qwen2vl."""
+One model per invocation: dinov2s | dinov2b | siglip | qwen2vl | vjepa2."""
 import argparse
 import sys
 from pathlib import Path
@@ -13,11 +13,30 @@ from experiments.exp_anatomy.common import SCENES, scene_files, to_uint8  # noqa
 
 HF = {"dinov2s": "facebook/dinov2-small", "dinov2b": "facebook/dinov2-base",
       "siglip": "google/siglip-base-patch16-224",
-      "qwen2vl": "Qwen/Qwen2-VL-2B-Instruct"}
+      "qwen2vl": "Qwen/Qwen2-VL-2B-Instruct",
+      "vjepa2": "facebook/vjepa2-vitl-fpc64-256"}
 
 
 def _encoder(key, dev):
     from transformers import AutoImageProcessor, AutoModel
+    if key == "vjepa2":
+        # Predictive foundation reference: V-JEPA 2 video encoder fed a STATIC
+        # clip (frame repeated T times) so the protocol stays single-frame like
+        # every other reference row; token-mean pooled.
+        from transformers import AutoVideoProcessor
+        proc = AutoVideoProcessor.from_pretrained(HF[key])
+        model = AutoModel.from_pretrained(
+            HF[key], torch_dtype=torch.float16).to(dev).eval()
+        T = 16
+
+        def enc(imgs):  # list of uint8 HWC
+            vids = [np.repeat(im[None], T, axis=0) for im in imgs]  # [T,H,W,C]
+            batch = proc(videos=vids, return_tensors="pt")
+            pv = batch["pixel_values_videos"].to(dev).half()
+            with torch.no_grad():
+                h = model(pixel_values_videos=pv).last_hidden_state  # [B,T'*N,D]
+            return h.mean(1).float().cpu().numpy()
+        return enc
     if key == "qwen2vl":
         from transformers import AutoProcessor, Qwen2VLForConditionalGeneration
         proc = AutoProcessor.from_pretrained(HF[key])

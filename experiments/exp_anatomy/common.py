@@ -72,6 +72,29 @@ def load_walk(f):
     return torch.load(f, map_location="cpu", weights_only=False)
 
 
+def build_encoder(vae, autoenc, root, args, dev):
+    """Resolve a probe's encoder: load --encoder-ckpt if given (produced by
+    experiments.exp_anatomy.pretrain_ckpt), else pretrain in-job per
+    --objective/--tier as before. Returns the pretrain steps behind the encoder,
+    so probes can record it (curve runs vary steps at fixed objective)."""
+    ck_path = getattr(args, "encoder_ckpt", None)
+    if ck_path:
+        ck = torch.load(ck_path, map_location="cpu", weights_only=False)
+        if ck.get("objective") != args.objective:
+            raise ValueError(f"--encoder-ckpt holds {ck.get('objective')!r} "
+                             f"but probe got --objective {args.objective!r}")
+        vae.load_state_dict(ck["state_dict"])
+        vae.to(dev)
+        return int(ck.get("steps", -1))
+    from experiments.exp_jepa.fewshot import PRETRAIN_STEPS
+    steps = PRETRAIN_STEPS.get(args.tier, 200)
+    if args.objective != "scratch":
+        pretrain_encoder(vae, autoenc, [root / s / "random_walks" for s in SCENES],
+                         args.objective, steps, dev)
+        return steps
+    return 0
+
+
 def _step_of(f):
     return int(Path(f).name.rsplit("_", 1)[1].split(".")[0])
 

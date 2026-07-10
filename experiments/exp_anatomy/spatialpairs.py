@@ -23,9 +23,8 @@ import torch.nn.functional as F
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 from experiments.exp_anatomy.common import (  # noqa: E402
-    SCENES, finish, load_walk, pretrain_encoder, scene_files, split_seeds, walk_sequences,
+    SCENES, build_encoder, finish, load_walk, scene_files, split_seeds, walk_sequences,
 )
-from experiments.exp_jepa.fewshot import PRETRAIN_STEPS  # noqa: E402
 from experiments.exp_jepa.locate import _load_module, _mlp  # noqa: E402
 
 
@@ -67,9 +66,7 @@ def run(args):
     else:
         autoenc = _load_module("sjepa_autoenc", ROOT / "training_scripts" / "1_autoencoder.py")
         vae = autoenc.ImageGraphVAE(args.latent_dim).to(dev).train()
-        if args.objective != "scratch":
-            pretrain_encoder(vae, autoenc, [root / s / "random_walks" for s in SCENES],
-                             args.objective, PRETRAIN_STEPS.get(args.tier, 200), dev)
+        args._pre_steps = build_encoder(vae, autoenc, root, args, dev)
         vae.img_enc.eval()
         dim = args.latent_dim
         need = sorted({f for tr, ev in scene_split.values() for f in tr + ev})
@@ -120,7 +117,8 @@ def run(args):
     Xev = torch.as_tensor(Zev, dtype=torch.float32, device=dev)
 
     if args.channel == "navdist":
-        head = _mlp(2 * dim, dim, 1).to(dev)
+        head = (torch.nn.Linear(2 * dim, 1) if args.head == "linear"
+                else _mlp(2 * dim, dim, 1)).to(dev)
         opt = torch.optim.AdamW(head.parameters(), lr=1e-3)
         y = torch.as_tensor(Dtr, dtype=torch.float32, device=dev)[:, None]
         for _ in range(args.head_steps):
@@ -140,11 +138,14 @@ def run(args):
                 "channel": f"navdist:{row}", "primary": round(r2, 4),
                 "metrics": {"r2": r2, "mae_m": mae, "floor_mae_m": floor_mae,
                             "n_train": int(len(Dtr)), "n_eval": int(len(Dev)),
-                            "dim": dim, "row": row, "seed": args.seed, "tier": args.tier},
+                            "dim": dim, "row": row, "head": args.head,
+                            "pretrain_steps": getattr(args, "_pre_steps", None),
+                            "seed": args.seed, "tier": args.tier},
                 "notes": f"navdist {row}: R2 {r2:.3f}, MAE {mae:.2f}m (floor {floor_mae:.2f}m)"}
 
     # relpose: predict [unit-direction(3), heading(1)]
-    head = _mlp(2 * dim, dim, 4).to(dev)
+    head = (torch.nn.Linear(2 * dim, 4) if args.head == "linear"
+            else _mlp(2 * dim, dim, 4)).to(dev)
     opt = torch.optim.AdamW(head.parameters(), lr=1e-3)
     tgt = torch.as_tensor(np.concatenate([DIRtr, Htr[:, None]], 1), dtype=torch.float32, device=dev)
     for _ in range(args.head_steps):
@@ -169,7 +170,9 @@ def run(args):
             "metrics": {"dir_cos": dir_cos, "floor_dir_cos": floor_cos,
                         "heading_mae": head_mae, "floor_heading_mae": floor_head_mae,
                         "n_train": int(len(Htr)), "n_eval": int(len(Hev)),
-                        "dim": dim, "row": row, "seed": args.seed, "tier": args.tier},
+                        "dim": dim, "row": row, "head": args.head,
+                        "pretrain_steps": getattr(args, "_pre_steps", None),
+                        "seed": args.seed, "tier": args.tier},
             "notes": f"relpose {row}: dir-cos {dir_cos:.3f} (floor {floor_cos:.3f}), "
                      f"heading-MAE {head_mae:.3f} (floor {floor_head_mae:.3f})"}
 
@@ -180,6 +183,8 @@ def main():
                     choices=["scratch", "jepa", "symalign", "contrastive", "recon", "rgb_only",
                              "fuse_cj_25", "fuse_cj_50", "fuse_cj_75"])
     ap.add_argument("--features-dir", default=None)
+    ap.add_argument("--encoder-ckpt", default=None)   # reuse a pretrain_ckpt encoder
+    ap.add_argument("--head", default="mlp", choices=["mlp", "linear"])
     ap.add_argument("--channel", default="navdist", choices=["navdist", "relpose"])
     ap.add_argument("--tier", default="shakedown")
     ap.add_argument("--head-steps", type=int, default=400)

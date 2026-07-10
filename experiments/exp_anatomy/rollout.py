@@ -16,10 +16,9 @@ import torch.nn.functional as F
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 from experiments.exp_anatomy.common import (  # noqa: E402
-    SCENES, finish, load_walk, pretrain_encoder, relative_action,
+    SCENES, build_encoder, finish, load_walk, relative_action,
     split_seeds, walk_sequences,
 )
-from experiments.exp_jepa.fewshot import PRETRAIN_STEPS  # noqa: E402
 from experiments.exp_jepa.locate import _load_module, _mlp  # noqa: E402
 
 
@@ -34,7 +33,14 @@ def run(args):
     # dominant cost and blew the walltime.
     zc, locc, vdc = {}, {}, {}
     vae = None
-    if args.features_dir:
+    pre_steps = None
+    if args.oracle_state:
+        # Positive control (harness validation): the "representation" is the
+        # ground-truth camera state [loc, view_dir]. Next-state is then exactly
+        # determined by the action, so the shuffle gap MUST be large if the
+        # harness can detect action-conditioning at all.
+        dim = 6
+    elif args.features_dir:
         feat = {}
         for sc in SCENES:
             p = Path(args.features_dir) / f"{sc}.pt"
@@ -50,12 +56,10 @@ def run(args):
     else:
         autoenc = _load_module("sjepa_autoenc", ROOT / "training_scripts" / "1_autoencoder.py")
         vae = autoenc.ImageGraphVAE(args.latent_dim).to(dev).train()
-        if args.objective != "scratch":
-            pretrain_encoder(vae, autoenc, [root / s / "random_walks" for s in SCENES],
-                             args.objective, PRETRAIN_STEPS.get(args.tier, 200), dev)
+        pre_steps = build_encoder(vae, autoenc, root, args, dev)
         vae.img_enc.eval()
         dim = args.latent_dim
-        print("pretrain done, building trajectories", flush=True)
+        print("encoder ready, building trajectories", flush=True)
 
     # collect trajectories across scenes.
     #   smooth   : Bartu's random walks, split by walk seed.
@@ -91,7 +95,15 @@ def run(args):
 
     # ONE pass over every unique file: cache latent + loc + view_dir, batch the
     # encode. For ref rows the caches are already populated from the feature files.
-    if vae is not None:
+    if args.oracle_state:
+        need = sorted({f for fs in list(tr_seqs.values()) + list(ev_seqs.values()) for f in fs})
+        for f in need:
+            s = load_walk(f)
+            locc[f] = np.asarray(s["loc"], np.float32).reshape(3)
+            vdc[f] = np.asarray(s["view_dir"], np.float32).reshape(3)
+            zc[f] = np.concatenate([locc[f], vdc[f]])
+        print(f"oracle state for {len(need)} frames", flush=True)
+    elif vae is not None:
         need = sorted({f for fs in list(tr_seqs.values()) + list(ev_seqs.values()) for f in fs})
         BS = 16                               # matches proven-safe encode_arm_latents batch
         for i in range(0, len(need), BS):
@@ -146,7 +158,8 @@ def run(args):
     # an untrained head outputs ~0 -> R^2~0 (copy-last floor), so the metric is
     # bounded and only genuine motion prediction from [z', action] earns positive R^2.
     Dtr = (Ys_tr - Zs_tr).astype(np.float32)
-    g = _mlp(dim + 6, 2 * dim, dim).to(dev)
+    g = (torch.nn.Linear(dim + 6, dim) if args.head == "linear"
+         else _mlp(dim + 6, 2 * dim, dim)).to(dev)
     opt = torch.optim.AdamW(g.parameters(), lr=1e-3)
     X = torch.as_tensor(np.concatenate([Zs_tr, As_tr], 1), dtype=torch.float32, device=dev)
     Tt = torch.as_tensor(Dtr, dtype=torch.float32, device=dev)
@@ -180,7 +193,10 @@ def run(args):
     r2 = delta_r2(pred, true_delta)         # model (copy-last floor = 0 by construction)
     r2_shuf = delta_r2(pred_sh, true_delta)  # shuffled-action control
     dcos = delta_cos(pred, true_delta)      # direction of predicted motion
-    row = args.objective if not args.features_dir else f"ref:{Path(args.features_dir).name}"
+    if args.oracle_state:
+        row = "oracle_state"
+    else:
+        row = args.objective if not args.features_dir else f"ref:{Path(args.features_dir).name}"
     chan = "rollout_act" if args.walks == "branching" else "rollout"
     return {"status": "ok",
             "verdict": "EXISTS" if r2 > 0.02 else "WEAK",
@@ -189,6 +205,7 @@ def run(args):
                         "shuffled_action_r2": r2_shuf, "action_gap": r2 - r2_shuf,
                         "delta_cos": dcos, "horizon": K, "n_train": int(len(Ztr)),
                         "n_eval": int(len(Zev)), "dim": dim, "row": row,
+                        "head": args.head, "pretrain_steps": pre_steps,
                         "seed": args.seed, "tier": args.tier},
             "notes": f"rollout {row} k={K}: delta-R2 {r2:.3f} (floor 0), "
                      f"shuffled-R2 {r2_shuf:.3f}, action-gap {r2 - r2_shuf:+.3f}, "
@@ -201,6 +218,9 @@ def main():
                     choices=["scratch", "jepa", "symalign", "contrastive", "recon", "rgb_only",
                              "fuse_cj_25", "fuse_cj_50", "fuse_cj_75"])
     ap.add_argument("--features-dir", default=None)
+    ap.add_argument("--encoder-ckpt", default=None)   # reuse a pretrain_ckpt encoder
+    ap.add_argument("--oracle-state", action="store_true")  # positive control
+    ap.add_argument("--head", default="mlp", choices=["mlp", "linear"])
     ap.add_argument("--walks", default="smooth", choices=["smooth", "branching"])
     ap.add_argument("--walks-root", default="data_branch")
     ap.add_argument("--horizon", type=int, default=2)
