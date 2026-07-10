@@ -58,7 +58,7 @@ def main():
     ap.add_argument("--seeds", type=int, default=26)
     ap.add_argument("--steps", type=int, default=40)
     ap.add_argument("--step-len", type=float, default=0.15)
-    ap.add_argument("--n-points", type=int, default=3_000_000)  # big multi-room scenes
+    ap.add_argument("--n-points", type=int, default=8_000_000)  # big multi-room scenes
     ap.add_argument("--up", default="auto", choices=["auto", "x", "y", "z"])
     ap.add_argument("--flip", default="auto", choices=["auto", "yes", "no"])
     args = ap.parse_args()
@@ -68,25 +68,31 @@ def main():
     out_dir = Path(args.out_root) / sc / "random_walks"
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    # Replica mesh.ply are QUAD meshes: o3d's triangle reader fails on them
-    # ("polygon could not be decomposed"). The vertex cloud itself is dense
-    # (millions of colored vertices), so read vertices directly; only fall back
-    # to surface sampling when a triangle mesh actually loads.
-    tm = o3d.io.read_triangle_mesh(str(ply))
-    if len(tm.triangles) > 0:
-        if not tm.has_vertex_colors():
-            tm.paint_uniform_color([0.5, 0.5, 0.5])
-        pcd = tm.sample_points_uniformly(number_of_points=args.n_points)
-    else:
-        pcd = o3d.io.read_point_cloud(str(ply))
-        if len(pcd.points) == 0:
-            raise RuntimeError(f"could not read {ply} as mesh or point cloud")
+    # Replica mesh.ply are QUAD meshes: o3d's triangle reader ABORTS mid-parse
+    # yet returns a partial fragment, and the raw vertex cloud (~1M/scene) is
+    # ~10x too sparse for the splatting raycaster (1-10% fill). Parse with
+    # plyfile, fan-triangulate the quads, then surface-sample densely like the
+    # ScanNet path.
+    from plyfile import PlyData
+    plydata = PlyData.read(str(ply))
+    v = plydata["vertex"].data
+    verts = np.stack([v["x"], v["y"], v["z"]], 1).astype(np.float64)
+    vcols = np.stack([v["red"], v["green"], v["blue"]], 1).astype(np.float64) / 255.0
+    faces = plydata["face"].data["vertex_indices"]
+    fl = np.array([len(f) for f in faces])
+    tris = []
+    for n in np.unique(fl):                       # fan-triangulate n-gons
+        F = np.vstack(faces[fl == n])
+        for k in range(1, n - 1):
+            tris.append(F[:, [0, k, k + 1]])
+    tris = np.concatenate(tris)
+    tm = o3d.geometry.TriangleMesh(o3d.utility.Vector3dVector(verts),
+                                   o3d.utility.Vector3iVector(tris))
+    tm.vertex_colors = o3d.utility.Vector3dVector(vcols)
+    pcd = tm.sample_points_uniformly(number_of_points=args.n_points)
     pts = np.asarray(pcd.points)
     cols = np.asarray(pcd.colors)
-    if len(cols) != len(pts):
-        cols = np.full((len(pts), 3), 0.5, dtype=np.float32)
-    print(f"{sc}: loaded {len(pts)} points "
-          f"({'sampled mesh' if len(tm.triangles) else 'vertex cloud'})", flush=True)
+    print(f"{sc}: {len(verts)} verts, {len(tris)} tris -> sampled {len(pts)} pts", flush=True)
     pts = gravity_align(pts, args.up, args.flip)
     print(f"{sc}: {len(pts)} pts, z[{pts[:,2].min():.2f},{pts[:,2].max():.2f}] "
           f"xy extent {pts[:,0].max()-pts[:,0].min():.1f}x{pts[:,1].max()-pts[:,1].min():.1f}m",
