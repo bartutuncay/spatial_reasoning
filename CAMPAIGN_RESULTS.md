@@ -527,3 +527,35 @@ context. This REFRAMES the near-floor columns: not dataset-limited but
 cj@objgraph, allocentric targets) is now the decisive test: if layout
 conditioning lifts navdist above zero where DINOv2-B fails, conditioning
 injects allocentric structure that scale alone does not.
+
+---
+
+# Modality matrix results (2026-07-11, 378 jobs, 0 failures)
+
+Rows cj<lam>@<modality>, lam∈{0,50,100}, 3 seeds. Replica (multi-room) +
+ETH3D. Tallies: anatomy_replica_mod / anatomy_eth3d_mod.
+
+**The two axes factor.** Within every modality, lam reproduces the objective
+frontier (discriminative-relational ↑ with lam, rollout ↓ with lam). Pure-JEPA
+rollout ≈ .40 for ALL targets — predictive smoothness is target-invariant,
+confirming the dissection.
+
+**The target determines the relational ceiling (Replica):**
+- placerec (floor .087): @objgraph lam100 = .312±.046 vs @pcd .168, @depth
+  .196, @layout .190 — the symbolic allocentric target ~doubles discrimination.
+- navdist: @objgraph lam100 = .069±.005 — the ONLY conditioning above floor,
+  ABOVE every foundation model (SigLIP .049, DINOv2-B .022); @pcd .032±.028.
+- relpose: @objgraph lam100 = .057±.015 vs other trained ~0 (refs .10–.19).
+- depth: @objgraph lam100 best trained anywhere (.316±.002).
+- rollout lam100: @pcd crashes hardest (.087); depth/layout/objgraph keep .14–.20.
+
+**ETH3D:** placerec target-invariant at lam100 (.82–.85, single-space scenes);
+relpose @depth .381 / @layout .354 BEAT @pcd .297 — target matters for
+relational readouts even there.
+
+**Reading:** conditioning objective sets the capability trade-off; conditioning
+TARGET sets how much allocentric structure is available to buy. The
+object-level scene model (the FBX-equivalent) injects cross-room spatial
+capability that neither egocentric geometry nor foundation-model scale
+provides. Layout (occupancy-only) underdelivers vs objects — identity+
+arrangement, not free space, is what carries.
