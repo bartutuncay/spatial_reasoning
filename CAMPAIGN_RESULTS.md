@@ -559,3 +559,11 @@ object-level scene model (the FBX-equivalent) injects cross-room spatial
 capability that neither egocentric geometry nor foundation-model scale
 provides. Layout (occupancy-only) underdelivers vs objects — identity+
 arrangement, not free space, is what carries.
+
+**CORRECTION (2026-07-11):** the missing navdist:cj100@objgraph seed landed at
+.0098 → n=3 mean **.049±.034**, statistically indistinguishable from the other
+targets (.027–.035) and TYING (not beating) SigLIP. The "only conditioning
+above floor / beats foundation refs on navdist" claim is WITHDRAWN from the
+paper. Robust objgraph claims that stand at n=3: placerec .312±.046 (2× over
+pcd), relpose .057±.015 (only trained conditioning above floor; refs .10–.19),
+depth .316±.002 (best trained). Paper prose corrected accordingly.
