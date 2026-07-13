@@ -16,6 +16,16 @@ SRC=/cluster/scratch/aleonel/spatial_jepa
 DST=/cluster/work/gess/cog/spatial_jepa
 mkdir -p "$DST"
 
+# Guard: a purged/empty scratch must NOT propagate --delete to the backup.
+# (15-day purge or a re-provision can leave results/ present but empty; rsyncing
+# that with --delete would wipe the only surviving copy of the evidence base.)
+n_results=$(find "$SRC/results" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l)
+if [ "$n_results" -lt 5 ]; then
+  echo "ABORT: only $n_results result dirs under $SRC/results (scratch purged?);" \
+       "refusing to --delete the backup at $DST" >&2
+  exit 1
+fi
+
 rsync -a --delete --exclude 'pilot_sweeps' "$SRC/results/" "$DST/results/"
 rsync -a "$SRC/datasets_replica/layouts" "$SRC/datasets_replica/objects" \
       "$DST/replica_assets/" 2>/dev/null || true

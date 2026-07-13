@@ -86,6 +86,12 @@ def build_encoder(vae, autoenc, root, args, dev):
         vae.load_state_dict(ck["state_dict"])
         vae.to(dev)
         return int(ck.get("steps", -1))
+    from experiments.exp_anatomy.modality import parse_row
+    if parse_row(args.objective):
+        raise ValueError(
+            f"modality objective {args.objective!r} must be pretrained via "
+            "experiments.exp_anatomy.pretrain_ckpt and probed with "
+            "--encoder-ckpt; build_encoder has no modality routing.")
     from experiments.exp_jepa.fewshot import PRETRAIN_STEPS
     steps = PRETRAIN_STEPS.get(args.tier, 200)
     if args.objective != "scratch":

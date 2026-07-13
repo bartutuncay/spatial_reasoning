@@ -101,8 +101,10 @@ def layout_crop(scene_map, loc, view_dir):
     dx = (ii - half + 0.5) * LAYOUT_RES
     dy = (jj - half + 0.5) * LAYOUT_RES
     world = np.stack([dx, dy], -1) @ R + np.asarray(loc[:2], np.float32)
-    ci = ((world[..., 0] - x0) / LAYOUT_RES).astype(int)
-    cj = ((world[..., 1] - y0) / LAYOUT_RES).astype(int)
+    # floor, not astype(int): truncation-toward-zero maps world in [x0-RES, x0)
+    # to cell 0, which then passes the >=0 bounds check instead of being masked.
+    ci = np.floor((world[..., 0] - x0) / LAYOUT_RES).astype(int)
+    cj = np.floor((world[..., 1] - y0) / LAYOUT_RES).astype(int)
     ok = (ci >= 0) & (ci < occ.shape[0]) & (cj >= 0) & (cj < occ.shape[1])
     out = np.zeros((2, LAYOUT_SIZE, LAYOUT_SIZE), np.float32)
     out[0][ok] = occ[ci[ok], cj[ok]]
